@@ -1,0 +1,5 @@
+# Ignore build output (we will build inside the container)
+build/
+.gradle/
+Dockerfile
+.dockerignore
