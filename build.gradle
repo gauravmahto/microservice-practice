@@ -1,0 +1,42 @@
+// build.gradle
+
+// Apply the 'java' plugin to add compilation and other Java-related tasks.
+// The 'application' plugin adds tasks for running our app.
+plugins {
+    id 'java'
+    id 'application'
+}
+
+// Specify the group and version for your project.
+group 'com.example'
+version '1.0-SNAPSHOT'
+
+// Configure the Java compiler version.
+java {
+    sourceCompatibility = '17'
+    targetCompatibility = '17'
+}
+
+// Define where to find the libraries (dependencies) our project needs.
+// 'mavenCentral()' is a very common public repository.
+repositories {
+    mavenCentral()
+}
+
+// Define the libraries our project depends on.
+dependencies {
+    // We'll add a simple logging library later. For now, it's empty.
+}
+
+// Tell the 'application' plugin where our main class is.
+application {
+    // Updated to fully-qualified class name (mainClassName is deprecated in recent Gradle versions)
+    mainClass = 'com.example.HelloWorld'
+}
+
+// Ensure the built JAR is executable by adding the Main-Class manifest entry.
+jar {
+    manifest {
+        attributes 'Main-Class': 'com.example.HelloWorld'
+    }
+}
