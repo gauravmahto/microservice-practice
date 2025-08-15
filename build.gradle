@@ -34,6 +34,8 @@ dependencies {
     implementation platform("io.helidon:helidon-bom:${helidonVersion}")
     implementation "io.helidon.webserver:helidon-webserver"
     implementation "io.helidon.config:helidon-config"
+    // YAML parser so Helidon can actually parse application.yaml
+    implementation "io.helidon.config:helidon-config-yaml"
     implementation "io.helidon.health:helidon-health"
     implementation "io.helidon.health:helidon-health-checks"
     // Optional: SLF4J simple for any libraries using slf4j (Helidon mainly uses JUL)

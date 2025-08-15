@@ -17,8 +17,12 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.net.BindException;
+import java.util.concurrent.CompletionException;
 
 /**
  * Simple Helidon SE application demonstrating:
@@ -60,15 +64,38 @@ public class SimpleWebServer {
    * @return started WebServer instance
    */
   public static WebServer startServer(Config config, int port) {
+    try {
+      WebServer ws = buildAndStart(config, port);
+      READY.set(true);
+      return ws;
+    } catch (CompletionException | IllegalStateException e) {
+      if (port != 0 && causedByBindException(e)) {
+        LOGGER.log(Level.WARNING, () -> "Port " + port + " in use. Retrying with ephemeral port (0)...");
+        WebServer ws = buildAndStart(config, 0);
+        READY.set(true);
+        return ws;
+      }
+      throw e;
+    }
+  }
+
+  private static WebServer buildAndStart(Config config, int port) {
     Routing routing = createRouting(config);
-    WebServer webServer = WebServer.builder()
-        .routing(routing) // attach routes
-        .port(port) // bind specified (or ephemeral) port
+    return WebServer.builder()
+        .routing(routing)
+        .port(port)
         .build()
-        .start() // asynchronous start
-        .await(); // wait until fully started
-    READY.set(true); // flip readiness flag to UP
-    return webServer;
+        .start()
+        .await();
+  }
+
+  private static boolean causedByBindException(Throwable t) {
+    Throwable cur = t;
+    while (cur != null) {
+      if (cur instanceof BindException) return true;
+      cur = cur.getCause();
+    }
+    return false;
   }
 
   /**
@@ -100,7 +127,20 @@ public class SimpleWebServer {
     return Routing.builder()
         .register(health) // /health, /health/live, /health/ready
         .get("/", (req, res) -> res.send(greeting + " @ " + Instant.now())) // dynamic greeting
-        .get("/config", (req, res) -> res.send(config.toString())) // demo: config dump
+        // Human-readable flattened config dump (key=value per line)
+        .get("/config", (req, res) -> {
+          Map<String, String> flat = config.asMap().get(); // dotted keys
+          String body = flat.entrySet().stream()
+              // .filter(e -> e.getKey().startsWith("server.") || e.getKey().startsWith("app."))
+              .sorted(Map.Entry.comparingByKey())
+              .map(e -> e.getKey() + "=" + e.getValue())
+              .collect(Collectors.joining("\n"));
+          if (body.isEmpty()) {
+            body = "(no application keys found)";
+          }
+          res.headers().add("Content-Type", "text/plain; charset=UTF-8");
+          res.send(body);
+        })
         .build();
   }
 }
