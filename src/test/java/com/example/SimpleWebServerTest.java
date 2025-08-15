@@ -14,14 +14,20 @@ import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Integration tests for {@link SimpleWebServer} verifying greeting and health
+ * endpoints.
+ */
 public class SimpleWebServerTest {
+  // WebServer instance started once for all tests
   private static WebServer server;
+  // Shared HTTP client with short connect timeout
   private static HttpClient client;
 
   @BeforeAll
   static void start() {
     Config config = Config.create();
-    // Use ephemeral port 0; Helidon will choose a free one
+    // Use ephemeral port 0 so OS selects a free port, avoids hard-coded conflicts
     server = SimpleWebServer.startServer(config, 0);
     client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
   }
@@ -29,24 +35,28 @@ public class SimpleWebServerTest {
   @AfterAll
   static void stop() {
     if (server != null) {
+      // Gracefully shutdown server and wait for completion
       server.shutdown().await();
     }
   }
 
   @Test
   void rootEndpointReturnsGreeting() throws Exception {
+    // Validate that root path returns a greeting string
     String body = get("/");
     assertTrue(body.contains("Hello") || body.contains("Hello from"), "Greeting not found: " + body);
   }
 
   @Test
   void healthEndpointsReturnUp() throws Exception {
+    // Basic health/liveness checks should both report status UP
     String live = get("/health/live");
     String ready = get("/health/ready");
     assertTrue(live.contains("\"status\":\"UP\""), live);
     assertTrue(ready.contains("\"status\":\"UP\""), ready);
   }
 
+  // Helper to perform a GET request and assert 200 OK, returning body
   private String get(String path) throws Exception {
     HttpRequest req = HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:" + server.port() + path))

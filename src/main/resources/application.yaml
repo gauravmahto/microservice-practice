@@ -1,5 +1,11 @@
+# Server configuration
 server:
+  # Port the application listens on
   port: 8080
+  # Network interface to bind (0.0.0.0 means all interfaces)
   host: 0.0.0.0
+
+# Custom application properties
 app:
+  # Greeting message served by the application
   greeting: 'Hello from config!'

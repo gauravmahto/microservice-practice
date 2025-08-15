@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # The name of our deployment
+  name: practice-app
+spec:
+  # We want to run 2 copies (replicas) of our application
+  replicas: 2
+  selector:
+    matchLabels:
+      app: practice-app
+  template:
+    metadata:
+      labels:
+        # This label connects the Pod to the Deployment and Service
+        app: practice-app
+    spec:
+      containers:
+        # This is our application container
+        - name: practice-container
+          # Use a versioned local image (build with: docker build -t practice-app:1.0.0 .)
+          image: practice-app:1.0.0
+          imagePullPolicy: IfNotPresent
+          # Tell Kubernetes which port the container listens on
+          ports:
+            - containerPort: 8080
+          # Basic liveness/readiness probes (adjust path if app exposes health endpoint)
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
