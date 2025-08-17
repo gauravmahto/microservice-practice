@@ -92,7 +92,8 @@ public class SimpleWebServer {
   private static boolean causedByBindException(Throwable t) {
     Throwable cur = t;
     while (cur != null) {
-      if (cur instanceof BindException) return true;
+      if (cur instanceof BindException)
+        return true;
       cur = cur.getCause();
     }
     return false;
@@ -131,7 +132,8 @@ public class SimpleWebServer {
         .get("/config", (req, res) -> {
           Map<String, String> flat = config.asMap().get(); // dotted keys
           String body = flat.entrySet().stream()
-              // .filter(e -> e.getKey().startsWith("server.") || e.getKey().startsWith("app."))
+              // .filter(e -> e.getKey().startsWith("server.") ||
+              // e.getKey().startsWith("app."))
               .sorted(Map.Entry.comparingByKey())
               .map(e -> e.getKey() + "=" + e.getValue())
               .collect(Collectors.joining("\n"));

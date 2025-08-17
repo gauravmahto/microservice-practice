@@ -5,8 +5,8 @@ Lightweight Helidon SE microservice demonstrating:
 * Greeting endpoint `/` (config-driven message)
 * Config dump `/config` (filtered `server.*` + `app.*` keys)
 * Health endpoints `/health`, `/health/live`, `/health/ready`
-	* Liveness: built-in `heapMemory` & `deadlock` checks
-	* Readiness: custom flag set only after full server start
+ 	* Liveness: built-in `heapMemory` & `deadlock` checks
+ 	* Readiness: custom flag set only after full server start
 * Automatic port fallback: if configured port is busy it retries with an ephemeral port
 * Kubernetes probes aligned with health endpoints
 * Built with Gradle + Shadow (fat) JAR
@@ -110,33 +110,33 @@ curl -H "Host: practice.local" http://<ingress-ip>/health
 
 ```yaml
 livenessProbe:
-	httpGet:
-		path: /health/live
-		port: http
-	initialDelaySeconds: 20
-	periodSeconds: 15
-	timeoutSeconds: 2
-	failureThreshold: 3
+ httpGet:
+  path: /health/live
+  port: http
+ initialDelaySeconds: 20
+ periodSeconds: 15
+ timeoutSeconds: 2
+ failureThreshold: 3
 readinessProbe:
-	httpGet:
-		path: /health/ready
-		port: http
-	initialDelaySeconds: 5
-	periodSeconds: 10
-	timeoutSeconds: 2
-	failureThreshold: 3
+ httpGet:
+  path: /health/ready
+  port: http
+ initialDelaySeconds: 5
+ periodSeconds: 10
+ timeoutSeconds: 2
+ failureThreshold: 3
 ```
 
 Optional startup probe (add if cold start slows):
 
 ```yaml
 startupProbe:
-	httpGet:
-		path: /health/live
-		port: http
-	initialDelaySeconds: 5
-	periodSeconds: 5
-	failureThreshold: 12  # ~60s max startup
+ httpGet:
+  path: /health/live
+  port: http
+ initialDelaySeconds: 5
+ periodSeconds: 5
+ failureThreshold: 12  # ~60s max startup
 ```
 
 Apply changes:
@@ -164,6 +164,28 @@ open build/reports/tests/test/index.html
 docker rm -f practice 2>/dev/null || true
 kubectl delete -f ingress.yaml -f service.yaml -f deployment.yaml 2>/dev/null || true
 ```
+
+## Source Code Compression Utility
+
+Create a clean source archive excluding ignored files (`build/`, `.gradle/`, etc.). Two options:
+
+1. Git-based Gradle task (tracked files only):
+
+```bash
+gradle gitSourceArchive
+ls -lh build/distributions/*source*.tar.gz
+```
+
+1. Script with optional inclusion of untracked (non-ignored) files:
+
+```bash
+chmod +x scripts/compress-source.sh   # first time
+scripts/compress-source.sh                # tracked files only
+scripts/compress-source.sh --include-untracked  # add new files you haven't committed
+scripts/compress-source.sh --output /tmp/src.tar.gz
+```
+
+Both methods respect `.gitignore` (ignored files are not packaged). The archive name embeds the current short commit hash.
 
 ## Troubleshooting
 

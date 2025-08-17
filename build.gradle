@@ -67,3 +67,35 @@ shadowJar {
 test {
     useJUnitPlatform()
 }
+
+// Task: create a source archive that respects .gitignore by delegating to git archive.
+// Usage: gradle gitSourceArchive
+tasks.register('gitSourceArchive') {
+    group = 'distribution'
+    description = 'Create source tar.gz via git archive (excludes ignored files)'
+    doLast {
+        def git = 'git'
+        def isRepo = new ByteArrayOutputStream()
+        exec { commandLine git, 'rev-parse', '--is-inside-work-tree'; standardOutput = isRepo; errorOutput = new ByteArrayOutputStream(); ignoreExitValue true }
+        if (!isRepo.toString().trim().equalsIgnoreCase('true')) {
+            throw new GradleException('Not a git repository: cannot create source archive')
+        }
+        def desc
+        try {
+            desc = ['git','describe','--tags','--dirty','--always'].execute().text.trim()
+        } catch(Exception ignored) {
+            desc = null
+        }
+        if (!desc) {
+            desc = ['git','rev-parse','--short','HEAD'].execute().text.trim()
+        }
+        // Actual commit object to archive (strip trailing -dirty if present)
+        def objectRef = desc.replaceFirst(/-dirty$/, '')
+        def outDir = file("build/distributions")
+        outDir.mkdirs()
+        def outFile = new File(outDir, "${project.name}-source-${desc}.tar.gz")
+        println "Creating source archive ${outFile} (objectRef=${objectRef}, label=${desc})"
+        exec { commandLine git, 'archive', '--format=tar.gz', '-o', outFile.absolutePath, objectRef }
+        println "Created ${outFile} (${outFile.length()} bytes)"
+    }
+}
