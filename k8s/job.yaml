@@ -1,0 +1,25 @@
+## Kubernetes Job to run the simple-check batch container once
+# Builds on the local image 'simple-check-app' (see simple-check/ directory)
+# and executes a single Pod with no retries (backoffLimit=0, restartPolicy=Never).
+# Update 'metadata.name' (or switch to 'generateName') for each new run to avoid name collisions.
+# Apply with: kubectl apply -f k8s/job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Each time we run the job, it needs a unique name.
+  # We'll add a timestamp manually for now.
+  name: simple-check-job-1
+spec:
+  template:
+    spec:
+      containers:
+      - name: check-container
+        # Use the image we just built
+        image: simple-check-app
+        # Make sure Kubernetes doesn't try to pull the image from the internet
+        imagePullPolicy: IfNotPresent
+      # A Job's pod should not be restarted if it fails.
+      # We want to see the failure.
+      restartPolicy: Never
+  # If the job fails, don't automatically retry it.
+  backoffLimit: 0

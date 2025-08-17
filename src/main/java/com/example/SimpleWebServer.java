@@ -5,6 +5,8 @@ import io.helidon.config.Config;
 // Core web server & routing types
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.WebServer;
+import io.helidon.webserver.ServerRequest;
+import io.helidon.webserver.ServerResponse;
 // Health aggregation & built‑in health checks
 import io.helidon.health.HealthSupport;
 import io.helidon.health.checks.HeapMemoryHealthCheck;
@@ -12,6 +14,12 @@ import io.helidon.health.checks.DeadlockHealthCheck;
 // MicroProfile Health SPI for custom readiness check
 import org.eclipse.microprofile.health.HealthCheck;
 import org.eclipse.microprofile.health.HealthCheckResponse;
+
+// Import Kubernetes client classes
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.KubernetesClientBuilder;
+import io.fabric8.kubernetes.api.model.batch.v1.Job;
+import io.fabric8.kubernetes.api.model.batch.v1.JobBuilder;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
@@ -42,6 +50,34 @@ public class SimpleWebServer {
   private static final Logger LOGGER = Logger.getLogger(SimpleWebServer.class.getName());
   // Readiness indicator: becomes true only after the server has fully started
   private static final AtomicBoolean READY = new AtomicBoolean(false);
+  // Lazily-created Kubernetes client (avoid failing class initialization in test
+  // envs without K8s config)
+  private static volatile KubernetesClient k8s; // not final to allow lazy init
+
+  private static KubernetesClient k8sClient() {
+    // Optional toggle to disable Kubernetes integration entirely (e.g. in tests):
+    // -Dk8s.disabled=true
+    if (Boolean.getBoolean("k8s.disabled")) {
+      return null;
+    }
+    KubernetesClient ref = k8s;
+    if (ref == null) {
+      synchronized (SimpleWebServer.class) {
+        ref = k8s;
+        if (ref == null) {
+          try {
+            ref = new KubernetesClientBuilder().build();
+            k8s = ref;
+          } catch (Exception e) {
+            LOGGER.log(Level.WARNING,
+                "Kubernetes client initialization failed; /run-check disabled: " + e.getMessage());
+            k8s = null; // leave null so later attempts can retry (or remain disabled)
+          }
+        }
+      }
+    }
+    return k8s;
+  }
 
   /**
    * Application entry point: loads configuration, resolves port, and starts the
@@ -81,6 +117,8 @@ public class SimpleWebServer {
 
   private static WebServer buildAndStart(Config config, int port) {
     Routing routing = createRouting(config);
+    // Use deprecated routing(Routing) for now (no replacement method available in
+    // current Helidon version)
     return WebServer.builder()
         .routing(routing)
         .port(port)
@@ -128,6 +166,7 @@ public class SimpleWebServer {
     return Routing.builder()
         .register(health) // /health, /health/live, /health/ready
         .get("/", (req, res) -> res.send(greeting + " @ " + Instant.now())) // dynamic greeting
+        .post("/run-check", SimpleWebServer::handleRunCheck)
         // Human-readable flattened config dump (key=value per line)
         .get("/config", (req, res) -> {
           Map<String, String> flat = config.asMap().get(); // dotted keys
@@ -144,5 +183,54 @@ public class SimpleWebServer {
           res.send(body);
         })
         .build();
+  }
+
+  // Handler that creates a Kubernetes Job (if client available)
+  private static void handleRunCheck(ServerRequest request, ServerResponse response) {
+    try {
+      KubernetesClient client = k8sClient();
+      if (client == null) {
+        response.status(503).send("Kubernetes client not available; feature disabled or init failed\n");
+        return;
+      }
+      // Generate a unique name for the Job using a timestamp
+      String jobName = "simple-check-job-" + System.currentTimeMillis();
+
+      // Use the JobBuilder to define the Job programmatically
+      Job job = new JobBuilder()
+          .withApiVersion("batch/v1")
+          .withNewMetadata()
+          .withName(jobName)
+          .endMetadata()
+          .withNewSpec()
+          .withNewTemplate()
+          .withNewSpec()
+          .addNewContainer()
+          .withName("check-container")
+          .withImage("simple-check-app") // The check image we built on Day 3
+          .withImagePullPolicy("IfNotPresent")
+          .endContainer()
+          .withRestartPolicy("Never")
+          .endSpec()
+          .endTemplate()
+          .withBackoffLimit(0)
+          .endSpec()
+          .build();
+
+      // Use the client to create the Job in the same namespace (fallback to 'default'
+      // if null)
+      String ns = client.getNamespace();
+      if (ns == null || ns.isBlank()) {
+        ns = "default"; // explicit fallback
+      }
+      client.batch().v1().jobs().inNamespace(ns).create(job);
+
+      System.out.println("Successfully created Job: " + jobName);
+      response.send("Successfully created Job: " + jobName + "\n");
+
+    } catch (Exception e) {
+      e.printStackTrace();
+      response.status(500).send("Failed to create Job: " + e.getMessage() + "\n");
+    }
   }
 }

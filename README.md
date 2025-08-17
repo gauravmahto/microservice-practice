@@ -5,11 +5,12 @@ Lightweight Helidon SE microservice demonstrating:
 * Greeting endpoint `/` (config-driven message)
 * Config dump `/config` (filtered `server.*` + `app.*` keys)
 * Health endpoints `/health`, `/health/live`, `/health/ready`
- 	* Liveness: built-in `heapMemory` & `deadlock` checks
- 	* Readiness: custom flag set only after full server start
+  * Liveness: built-in `heapMemory` & `deadlock` checks
+  * Readiness: custom flag set only after full server start
 * Automatic port fallback: if configured port is busy it retries with an ephemeral port
 * Kubernetes probes aligned with health endpoints
 * Built with Gradle + Shadow (fat) JAR
+* Optional Kubernetes Job trigger endpoint: POST `/run-check` (creates a one-off Job when K8s client enabled)
 
 ## Source Highlights
 
@@ -18,7 +19,7 @@ Lightweight Helidon SE microservice demonstrating:
 * Build script: [`build.gradle`](build.gradle)
 * Test: [`SimpleWebServerTest.java`](src/test/java/com/example/SimpleWebServerTest.java)
 * Container: [`Dockerfile`](Dockerfile)
-* K8s manifests: [`deployment.yaml`](deployment.yaml), [`service.yaml`](service.yaml), [`ingress.yaml`](ingress.yaml)
+* K8s manifests: [`deployment.yaml`](k8s/deployment.yaml), [`service.yaml`](k8s/service.yaml), [`ingress.yaml`](k8s/ingress.yaml), [`job.yaml`](k8s/job.yaml)
 
 ## Requirements
 
@@ -62,6 +63,7 @@ curl -s localhost:8080/config
 curl -s localhost:8080/health
 curl -s localhost:8080/health/live
 curl -s localhost:8080/health/ready
+curl -s -X POST localhost:8080/run-check   # may return 503 if k8s disabled or client not configured
 ```
 
 ## Docker
@@ -85,7 +87,7 @@ Apply manifests (adjust image tag to one you built/pushed):
 # (Optional) load image into local cluster (example for kind)
 # kind load docker-image practice-app:1.0.0
 
-kubectl apply -f deployment.yaml -f service.yaml -f ingress.yaml
+kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml -f k8s/ingress.yaml
 
 kubectl get pods -l app=practice-app
 kubectl get svc practice-service
@@ -142,7 +144,7 @@ startupProbe:
 Apply changes:
 
 ```bash
-kubectl apply -f deployment.yaml
+kubectl apply -f k8s/deployment.yaml
 ```
 
 ## Running Tests as Smoke Check
@@ -162,7 +164,7 @@ open build/reports/tests/test/index.html
 
 ```bash
 docker rm -f practice 2>/dev/null || true
-kubectl delete -f ingress.yaml -f service.yaml -f deployment.yaml 2>/dev/null || true
+kubectl delete -f k8s/ingress.yaml -f k8s/service.yaml -f k8s/deployment.yaml 2>/dev/null || true
 ```
 
 ## Source Code Compression Utility
@@ -186,6 +188,82 @@ scripts/compress-source.sh --output /tmp/src.tar.gz
 ```
 
 Both methods respect `.gitignore` (ignored files are not packaged). The archive name embeds the current short commit hash.
+
+## Simple Check Batch Job
+
+This repo includes a lightweight batch Job example under `simple-check/` and a Kubernetes `Job` manifest at `k8s/job.yaml`.
+
+### Build the Job Image
+
+```bash
+cd simple-check
+docker build -t simple-check-app .
+cd -
+```
+
+### Run the Job in Kubernetes
+
+Ensure the image `simple-check-app` is available to your cluster (loaded into kind / minikube cache or pushed to a registry the cluster can pull from). Then apply:
+
+```bash
+kubectl apply -f k8s/job.yaml
+```
+
+If you need a unique run, edit the `metadata.name` (e.g. append `-2`) before applying. The manifest sets `imagePullPolicy: IfNotPresent` so a locally-built image is used.
+
+Check status & logs:
+
+```bash
+kubectl get jobs
+kubectl get pods -l job-name=simple-check-job-1
+kubectl logs -l job-name=simple-check-job-1 --tail=100
+```
+
+Delete the Job (and its pod):
+
+```bash
+kubectl delete job simple-check-job-1
+```
+
+Adjust `backoffLimit` if you want automatic retries (currently `0` => no retries). Update `name` each re-run to avoid "already exists" errors.
+
+## Kubernetes Job Trigger Endpoint (`/run-check`)
+
+The application exposes a POST endpoint `/run-check` that programmatically creates a Kubernetes Job similar to `k8s/job.yaml`:
+
+```bash
+curl -X POST http://localhost:8080/run-check
+```
+
+Behavior:
+
+* Returns `200` and the created Job name when a Kubernetes client can be initialized and the API is reachable.
+* Returns `503` with a message `Kubernetes client not available` when disabled or initialization failed.
+* Returns `500` if a creation attempt was made but failed (exception path).
+
+Disabling (default in tests): set system property `-Dk8s.disabled=true` (already applied for the Gradle `test` task in `build.gradle`).
+
+The client is lazily initialized; failures are logged once and the endpoint remains in a disabled state until a later attempt succeeds.
+
+### Testing `/run-check`
+
+Unit test `RunCheckEndpointTest` asserts the `503` behavior when Kubernetes integration is disabled.
+To test success manually in a cluster:
+
+1. Build & load images (`practice-app:1.0.0` and `simple-check-app`).
+2. Ensure RBAC in `k8s/rbac.yaml` applied (ServiceAccount + Role + RoleBinding).
+3. Deploy the app with that ServiceAccount.
+4. Call the endpoint through port-forward or ingress:
+
+```bash
+curl -X POST http://localhost:<forwarded-port>/run-check
+```
+
+Check created Job:
+
+```bash
+kubectl get jobs | grep simple-check-job
+```
 
 ## Troubleshooting
 

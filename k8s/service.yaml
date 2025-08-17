@@ -1,3 +1,6 @@
+## ClusterIP Service providing stable virtual IP for the practice application Pods
+# Selects pods labeled app=practice-app and exposes them on port 80 -> containerPort 8080.
+# Consumed by the Ingress (ingress.yaml) and usable for internal cluster traffic.
 apiVersion: v1
 kind: Service
 metadata:

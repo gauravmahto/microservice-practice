@@ -1,3 +1,9 @@
+## Kubernetes Deployment for the practice Helidon SE application
+# Provides a replicated (2 pods) stateless service exposing port 8080 with
+# liveness/readiness probes, resource requests/limits, and a ServiceAccount
+# (defined in rbac.yaml) for future RBAC-controlled operations (e.g., managing Jobs).
+# Apply after building the image locally (docker build -t practice-app:1.0.0 .)
+# and creating the associated RBAC resources.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,6 +21,8 @@ spec:
         # This label connects the Pod to the Deployment and Service
         app: practice-app
     spec:
+      # ServiceAccount providing pod identity/RBAC (must exist or be created separately)
+      serviceAccountName: practice-app-sa
       containers:
         # This is our application container
         - name: practice-container
@@ -42,6 +50,7 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 2
             failureThreshold: 3
+          # Basic resource management (requests = guaranteed minimum, limits = cap)
           resources:
             requests:
               cpu: 100m
