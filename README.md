@@ -1,10 +1,24 @@
-# Stage 2: Introduce Helidon SimpleWebServer with health  config
+# Stage 3: Basic Helidon web server with health endpoints and config support
 
-# Microservice Practice (Stage 1)
+This stage replaces the HelloWorld class with a real Helidon SE `SimpleWebServer`.
 
-Initial minimal Java project with Gradle, single HelloWorld class and Dockerfile.
+Concepts introduced:
+- Helidon WebServer + Routing
+- Health endpoints (/health, /health/live, /health/ready) with readiness flag
+- Externalized config via application.yaml (port, greeting)
+- Basic JUnit 5 test exercising root + health endpoints
 
-Next: introduce a web server + health checks.
+Key files:
+- src/main/java/com/example/SimpleWebServer.java
+- src/main/resources/application.yaml
+- src/test/java/com/example/SimpleWebServerTest.java
+- build.gradle (adds Helidon + shadow plugin)
 
-Added: Helidon dependencies, SimpleWebServer, health endpoints, config file, JUnit test.
-Next: add Kubernetes manifests & integration focus.
+Try it:
+```bash
+gradle run
+# In another terminal
+curl -s localhost:8080/health
+```
+
+Next: introduce Kubernetes manifests (Deployment, Service, Ingress).
