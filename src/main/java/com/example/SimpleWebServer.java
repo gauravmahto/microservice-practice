@@ -196,19 +196,35 @@ public class SimpleWebServer {
       // Generate a unique name for the Job using a timestamp
       String jobName = "simple-check-job-" + System.currentTimeMillis();
 
-      // Use the JobBuilder to define the Job programmatically
+      // Allow overriding image via query param or system property for flexibility
+      String overrideImage = request.queryParams().first("image").orElse(null);
+      if (overrideImage == null || overrideImage.isBlank()) {
+        overrideImage = System.getProperty("check.image", "simple-check-app:latest");
+      }
+
+      // Target URL (optional) override; falls back to env-based defaults inside
+      // script
+      String targetUrl = request.queryParams().first("url").orElse(System.getProperty("check.target.url", ""));
+
       Job job = new JobBuilder()
           .withApiVersion("batch/v1")
           .withNewMetadata()
           .withName(jobName)
+          .addToLabels("app", "simple-check")
           .endMetadata()
           .withNewSpec()
           .withNewTemplate()
           .withNewSpec()
           .addNewContainer()
           .withName("check-container")
-          .withImage("simple-check-app") // The check image we built on Day 3
+          .withImage(overrideImage)
           .withImagePullPolicy("IfNotPresent")
+          .addNewEnv().withName("TOTAL_TIMEOUT").withValue("30").endEnv()
+          // Optional explicit target if provided
+          .addAllToEnv(targetUrl == null || targetUrl.isBlank() ? java.util.List.of()
+              : java.util.List.of(
+                  new io.fabric8.kubernetes.api.model.EnvVarBuilder().withName("TARGET_URL").withValue(targetUrl)
+                      .build()))
           .endContainer()
           .withRestartPolicy("Never")
           .endSpec()

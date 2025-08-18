@@ -196,7 +196,42 @@ Both methods respect `.gitignore` (ignored files are not packaged). The archive 
 
 ## Simple Check Batch Job
 
-This repo includes a lightweight batch Job example under `simple-check/` and a Kubernetes `Job` manifest at `k8s/job.yaml`.
+This repo includes a deterministic readiness verification batch Job under `simple-check/` and a Kubernetes `Job` manifest at `k8s/job.yaml`.
+
+### Readiness Check Script (`simple-check/check.py`)
+
+The Python script performs an HTTP GET against a readiness endpoint (defaults to the in-cluster service `http://practice-service/health/ready`). It succeeds only if:
+
+* HTTP status is 200
+* JSON body has overall `{"status":"UP"}`
+
+Configuration precedence (first present wins):
+
+1. CLI argument `--url`
+2. Environment variable `TARGET_URL`
+3. Built from `TARGET_HOST` + `TARGET_PORT` + `TARGET_PATH`
+4. Fallback default: `http://practice-service/health/ready`
+
+Other env / args:
+
+* `--timeout` argument or `TOTAL_TIMEOUT` env (seconds, default 30)
+
+Exit codes:
+
+* `0` success (ready)
+* `1` failure (not ready within timeout / invalid response)
+
+Run locally (after starting the Java server):
+
+```bash
+python3 simple-check/check.py --url http://localhost:8080/health/ready --timeout 10
+```
+
+Simulate failure:
+
+```bash
+python3 simple-check/check.py --url http://localhost:65530/health/ready --timeout 5 || echo "failed as expected"
+```
 
 ### Build the Job Image
 
@@ -206,7 +241,7 @@ docker build -t simple-check-app .
 cd -
 ```
 
-### Run the Job in Kubernetes
+### Run the Job in Kubernetes (manual manifest)
 
 Ensure the image `simple-check-app` is available to your cluster (loaded into kind / minikube cache or pushed to a registry the cluster can pull from). Then apply:
 
@@ -214,7 +249,9 @@ Ensure the image `simple-check-app` is available to your cluster (loaded into ki
 kubectl apply -f k8s/job.yaml
 ```
 
-If you need a unique run, edit the `metadata.name` (e.g. append `-2`) before applying. The manifest sets `imagePullPolicy: IfNotPresent` so a locally-built image is used.
+`job.yaml` uses `generateName:` so you can apply it repeatedly without editing; Kubernetes appends a unique suffix.
+
+The manifest sets `imagePullPolicy: IfNotPresent` so a locally-built image is reused (works for kind/minikube if loaded).
 
 Check status & logs:
 
@@ -222,6 +259,25 @@ Check status & logs:
 kubectl get jobs
 kubectl get pods -l job-name=simple-check-job-1
 kubectl logs -l job-name=simple-check-job-1 --tail=100
+```
+
+Get last Job name quickly:
+
+```bash
+JOB=$(kubectl get jobs -o jsonpath='{.items[-1:].0.metadata.name}')
+echo $JOB
+```
+
+Tail pod logs (auto-detect):
+
+```bash
+kubectl logs -l job-name=$JOB --tail=100
+```
+
+Watch Job until completion:
+
+```bash
+kubectl get job $JOB -w
 ```
 
 Delete the Job (and its pod):
@@ -234,7 +290,7 @@ Adjust `backoffLimit` if you want automatic retries (currently `0` => no retries
 
 ## Kubernetes Job Trigger Endpoint (`/run-check`)
 
-The application exposes a POST endpoint `/run-check` that programmatically creates a Kubernetes Job similar to `k8s/job.yaml`:
+The application exposes a POST endpoint `/run-check` that programmatically creates a Kubernetes Job similar to `k8s/job.yaml` but with a dynamically generated name (timestamp) and environment variables (`TOTAL_TIMEOUT=30`, optional `TARGET_URL`).
 
 ```bash
 curl -X POST http://localhost:8080/run-check
@@ -253,9 +309,40 @@ If any prerequisite is missing the endpoint returns `503`.
 
 Behavior:
 
-* Returns `200` and the created Job name when a Kubernetes client can be initialized and the API is reachable.
-* Returns `503` with a message `Kubernetes client not available` when disabled or initialization failed.
-* Returns `500` if a creation attempt was made but failed (exception path).
+* `200 OK` + Job name when client initializes and create succeeds.
+* `503` when feature disabled (`k8s.disabled=true`) or client init failed / kube API not reachable.
+* `500` on exception during Job creation.
+
+### Advanced Usage
+
+Query parameters:
+
+* `image` – override container image (default `simple-check-app:latest` or `-Dcheck.image=` system property)
+* `url` – explicit target URL injected as `TARGET_URL` env var (default built inside script)
+
+System properties (JVM start args):
+
+* `-Dcheck.image=<image>` global default for Job image
+* `-Dcheck.target.url=<url>` fallback if no query param provided
+
+Example overrides:
+
+```bash
+curl -X POST "http://localhost:8080/run-check?image=simple-check-app:latest&url=http://practice-service/health/ready"
+```
+
+### Verify Job After Trigger
+
+```bash
+kubectl get jobs | grep simple-check
+kubectl logs -l job-name=<returned-job-name>
+```
+
+Cleanup old Jobs (keep last 5):
+
+```bash
+kubectl get jobs -o name | head -n -5 | xargs -r kubectl delete
+```
 
 Disabling (default in tests): set system property `-Dk8s.disabled=true` (already applied for the Gradle `test` task in `build.gradle`).
 
@@ -274,6 +361,61 @@ minikube image load simple-check-app || true
 Ensure the image reference inside the handler (`simple-check-app`) matches what you built/pushed or modify both the code and `k8s/job.yaml` accordingly.
 
 The client is lazily initialized; failures are logged once and the endpoint remains in a disabled state until a later attempt succeeds.
+
+### End-to-End Kubernetes Demo (All Steps)
+
+```bash
+# 0. Namespace (optional)
+kubectl create namespace practice || true
+kubectl config set-context --current --namespace=practice
+
+# 1. Build images locally
+docker build -t practice-app:1.0.0 .
+docker build -t simple-check-app:latest simple-check
+
+# 2. Load images into cluster (choose one)
+kind load docker-image practice-app:1.0.0 simple-check-app:latest || true
+# or
+minikube image load practice-app:1.0.0; minikube image load simple-check-app:latest
+
+# 3. RBAC + core resources
+kubectl apply -f k8s/rbac.yaml
+kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml
+
+# 4. Wait for pods ready
+kubectl rollout status deployment/practice-app
+
+# 5. Trigger a check
+kubectl port-forward deploy/practice-app 8080:8080 &
+sleep 2
+curl -X POST http://localhost:8080/run-check
+
+# 6. Inspect jobs & logs
+kubectl get jobs
+JOB=$(kubectl get jobs -o jsonpath='{.items[-1:].0.metadata.name}')
+kubectl logs -l job-name=$JOB
+
+# 7. (Optional) ingress
+kubectl apply -f k8s/ingress.yaml
+```
+
+Troubleshooting:
+
+| Problem | Fix |
+|---------|-----|
+| ImagePullBackOff for job | Ensure `simple-check-app:latest` loaded/pushed; image name matches handler param |
+| `/run-check` returns 503 | Remove `-Dk8s.disabled=true`, apply RBAC, confirm cluster creds |
+| Job stuck active | Inspect pod events `kubectl describe job/<name>` / pod logs |
+| Timeout in script | Increase `TOTAL_TIMEOUT` env or `--timeout` arg |
+
+### Local Script Test Against Cluster Service
+
+If port-forwarding service:
+
+```bash
+kubectl port-forward svc/practice-service 8081:80 &
+python3 simple-check/check.py --url http://localhost:8081/health/ready --timeout 15
+```
 
 ### Testing `/run-check`
 
