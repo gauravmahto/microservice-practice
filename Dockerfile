@@ -3,25 +3,16 @@
 # docker run -it --rm --name running-practice-app practice-app
 # Above commands build the Docker image and run it interactively and removes the image when done.
 
-# ---------- Build stage ----------
-FROM gradle:8.10.1-jdk17-jammy AS build
-WORKDIR /workspace
+# Start from a base image that has Java 17 installed.
+# This is much simpler than the one in the real project for now.
+FROM openjdk:17-jdk-slim
 
-# Copy build scripts and sources
-COPY build.gradle ./
-COPY settings.gradle ./
-COPY src ./src
-
-# Build the application (skip tests for speed)
-RUN gradle --no-daemon clean build -x test
-
-# ---------- Runtime stage ----------
-FROM eclipse-temurin:17-jre-jammy
+# Set the working directory inside the container.
 WORKDIR /app
 
-# Copy only the runnable jar from the build stage
-# Copy only the runnable fat jar from the build stage
-COPY --from=build /workspace/build/libs/*-all.jar app.jar
+# Copy the built .jar file from our local machine into the container.
+# The Gradle build process creates this file in the 'build/libs' directory.
+COPY build/libs/practice-1.0-SNAPSHOT.jar app.jar
 
-EXPOSE 8080
+# The command to run when the container starts.
 ENTRYPOINT ["java", "-jar", "app.jar"]

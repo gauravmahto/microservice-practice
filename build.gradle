@@ -5,7 +5,6 @@
 plugins {
     id 'java'
     id 'application'
-    id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 // Specify the group and version for your project.
@@ -18,11 +17,6 @@ java {
     targetCompatibility = '17'
 }
 
-// Use current Helidon 3.x version via BOM.
-ext {
-    helidonVersion = '3.2.3'
-}
-
 // Define where to find the libraries (dependencies) our project needs.
 // 'mavenCentral()' is a very common public repository.
 repositories {
@@ -31,75 +25,18 @@ repositories {
 
 // Define the libraries our project depends on.
 dependencies {
-    implementation platform("io.helidon:helidon-bom:${helidonVersion}")
-    implementation "io.helidon.webserver:helidon-webserver"
-    implementation "io.helidon.config:helidon-config"
-    // YAML parser so Helidon can actually parse application.yaml
-    implementation "io.helidon.config:helidon-config-yaml"
-    implementation "io.helidon.health:helidon-health"
-    implementation "io.helidon.health:helidon-health-checks"
-    // Optional: SLF4J simple for any libraries using slf4j (Helidon mainly uses JUL)
-    implementation "org.slf4j:slf4j-simple:2.0.13"
-    // Add the Fabric8 Kubernetes Client dependency
-    implementation 'io.fabric8:kubernetes-client:6.7.2'
-
-    testImplementation platform("io.helidon:helidon-bom:${helidonVersion}")
-    testImplementation "org.junit.jupiter:junit-jupiter:5.10.2"
+    // We'll add a simple logging library later. For now, it's empty.
 }
 
 // Tell the 'application' plugin where our main class is.
 application {
-    mainClass = 'com.example.SimpleWebServer'
+    // Updated to fully-qualified class name (mainClassName is deprecated in recent Gradle versions)
+    mainClass = 'com.example.HelloWorld'
 }
 
 // Ensure the built JAR is executable by adding the Main-Class manifest entry.
 jar {
     manifest {
-        attributes 'Main-Class': 'com.example.SimpleWebServer'
-    }
-}
-
-shadowJar {
-    archiveClassifier.set('all')
-    manifest {
-        attributes 'Main-Class': 'com.example.SimpleWebServer'
-    }
-}
-
-test {
-    useJUnitPlatform()
-    // Disable Kubernetes integration during unit tests to avoid needing a cluster
-    systemProperty 'k8s.disabled', 'true'
-}
-
-// Task: create a source archive that respects .gitignore by delegating to git archive.
-// Usage: gradle gitSourceArchive
-tasks.register('gitSourceArchive') {
-    group = 'distribution'
-    description = 'Create source tar.gz via git archive (excludes ignored files)'
-    doLast {
-        def git = 'git'
-        def isRepo = new ByteArrayOutputStream()
-        exec { commandLine git, 'rev-parse', '--is-inside-work-tree'; standardOutput = isRepo; errorOutput = new ByteArrayOutputStream(); ignoreExitValue true }
-        if (!isRepo.toString().trim().equalsIgnoreCase('true')) {
-            throw new GradleException('Not a git repository: cannot create source archive')
-        }
-        def desc
-        try {
-            desc = ['git','describe','--tags','--dirty','--always'].execute().text.trim()
-        } catch(Exception ignored) {
-            desc = null
-        }
-        if (!desc) {
-            desc = ['git','rev-parse','--short','HEAD'].execute().text.trim()
-        }
-        // Actual commit object to archive (strip trailing -dirty if present)
-        def objectRef = desc.replaceFirst(/-dirty$/, '')
-        def outDir = file("build/distributions")
-        outDir.mkdirs()
-        def outFile = new File(outDir, "${project.name}-source-${desc}.tar.gz")
-        println "Creating source archive ${outFile} (objectRef=${objectRef}, label=${desc})"
-        exec { commandLine git, 'archive', '--format=tar.gz', '-o', outFile.absolutePath, objectRef }
-        println "Created ${outFile} (${outFile.length()} bytes)"
+        attributes 'Main-Class': 'com.example.HelloWorld'
     }
 }
