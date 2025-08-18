@@ -1,24 +1,22 @@
-# Stage 3: Basic Helidon web server with health endpoints and config support
-
-This stage replaces the HelloWorld class with a real Helidon SE `SimpleWebServer`.
+# Stage 4: Introduce basic Kubernetes manifests (Deployment, Service, Ingress)
 
 Concepts introduced:
-- Helidon WebServer + Routing
-- Health endpoints (/health, /health/live, /health/ready) with readiness flag
-- Externalized config via application.yaml (port, greeting)
-- Basic JUnit 5 test exercising root + health endpoints
+- Stateless Deployment with 2 replicas
+- ClusterIP Service exposing app internally on port 80 -> 8080
+- Ingress routing external traffic to Service (host: practice.local)
+- Health probe alignment using /health/live and /health/ready
 
 Key files:
-- src/main/java/com/example/SimpleWebServer.java
-- src/main/resources/application.yaml
-- src/test/java/com/example/SimpleWebServerTest.java
-- build.gradle (adds Helidon + shadow plugin)
+- k8s/deployment.yaml
+- k8s/service.yaml
+- k8s/ingress.yaml
 
-Try it:
+Try it (after building image):
 ```bash
-gradle run
-# In another terminal
-curl -s localhost:8080/health
+docker build -t practice-app:1.0.0 .
+kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml -f k8s/ingress.yaml
+# Verify
+kubectl get pods -l app=practice-app
 ```
 
-Next: introduce Kubernetes manifests (Deployment, Service, Ingress).
+Next: improve server robustness (port fallback) & enrich README explanations.

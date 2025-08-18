@@ -1,0 +1,22 @@
+## Ingress exposing the practice service externally via host practice.local
+# Requires an Ingress controller (e.g., nginx) installed in the cluster.
+# Map practice.local to the controller's external IP (e.g., /etc/hosts for local dev).
+# Rewrites all paths to root (nginx ingress rewrite annotation).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: practice-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+    - host: practice.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: practice-service
+                port:
+                  number: 80
