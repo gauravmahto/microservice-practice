@@ -1,12 +1,13 @@
-# Stage 5: Server robustness & improved health probe alignment
+# Stage 6: Build & distribution tooling (source compression)
 
-Enhancements added:
-- Port binding retry: if configured port is busy, fall back to ephemeral port 0
-- Expanded README with probe configuration guidance
-- Clearer config dump output (flattened key=value)
+Added:
+- scripts/compress-source.sh for creating clean source archives (tracked files)
+- Concept: reproducible source packaging respecting .gitignore
 
-Key learning points:
-- Operational resilience (port conflicts)
-- Production-grade health probe configuration
+Usage:
+```bash
+./scripts/compress-source.sh
+./scripts/compress-source.sh --include-untracked
+```
 
-Next: add build/tooling enhancements (source compression script).
+Next: integrate optional Kubernetes Job trigger endpoint (/run-check) with RBAC.
