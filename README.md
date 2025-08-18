@@ -1,22 +1,12 @@
-# Stage 4: Introduce basic Kubernetes manifests (Deployment, Service, Ingress)
+# Stage 5: Server robustness & improved health probe alignment
 
-Concepts introduced:
-- Stateless Deployment with 2 replicas
-- ClusterIP Service exposing app internally on port 80 -> 8080
-- Ingress routing external traffic to Service (host: practice.local)
-- Health probe alignment using /health/live and /health/ready
+Enhancements added:
+- Port binding retry: if configured port is busy, fall back to ephemeral port 0
+- Expanded README with probe configuration guidance
+- Clearer config dump output (flattened key=value)
 
-Key files:
-- k8s/deployment.yaml
-- k8s/service.yaml
-- k8s/ingress.yaml
+Key learning points:
+- Operational resilience (port conflicts)
+- Production-grade health probe configuration
 
-Try it (after building image):
-```bash
-docker build -t practice-app:1.0.0 .
-kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml -f k8s/ingress.yaml
-# Verify
-kubectl get pods -l app=practice-app
-```
-
-Next: improve server robustness (port fallback) & enrich README explanations.
+Next: add build/tooling enhancements (source compression script).
