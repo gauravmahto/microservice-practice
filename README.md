@@ -19,7 +19,7 @@ Lightweight Helidon SE microservice demonstrating:
 * Build script: [`build.gradle`](build.gradle)
 * Test: [`SimpleWebServerTest.java`](src/test/java/com/example/SimpleWebServerTest.java)
 * Container: [`Dockerfile`](Dockerfile)
-* K8s manifests: [`deployment.yaml`](k8s/deployment.yaml), [`service.yaml`](k8s/service.yaml), [`ingress.yaml`](k8s/ingress.yaml), [`job.yaml`](k8s/job.yaml)
+* K8s manifests: [`deployment.yaml`](k8s/deployment.yaml), [`service.yaml`](k8s/service.yaml), [`ingress.yaml`](k8s/ingress.yaml), [`rbac.yaml`](k8s/rbac.yaml), [`job.yaml`](k8s/job.yaml)
 
 ## Requirements
 
@@ -81,14 +81,19 @@ curl -s localhost:8080/health
 
 ## Kubernetes
 
-Apply manifests (adjust image tag to one you built/pushed):
+Apply manifests (adjust image tag to one you built/pushed). If you plan to use the `/run-check` endpoint or run Jobs programmatically, apply RBAC first (creates ServiceAccount referenced by the Deployment):
 
 ```bash
 # (Optional) load image into local cluster (example for kind)
 # kind load docker-image practice-app:1.0.0
 
+# (1) RBAC (ServiceAccount, Role, RoleBinding) – needed for /run-check feature
+kubectl apply -f k8s/rbac.yaml
+
+# (2) Core workload + networking
 kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml -f k8s/ingress.yaml
 
+# (3) Verify
 kubectl get pods -l app=practice-app
 kubectl get svc practice-service
 ```
@@ -235,6 +240,17 @@ The application exposes a POST endpoint `/run-check` that programmatically creat
 curl -X POST http://localhost:8080/run-check
 ```
 
+### Enabling the Endpoint
+
+The endpoint is available when:
+
+1. The app is running inside (or has access to) a Kubernetes cluster configuration (kubeconfig / in-cluster).
+2. The system property **`k8s.disabled` is NOT set to `true`** (tests set it to disable side effects).
+3. RBAC resources from `k8s/rbac.yaml` are applied and the Deployment uses the provided ServiceAccount (`practice-app-sa`).
+4. A container image for the job (`simple-check-app`) is present in the cluster (build and load/push first – see below).
+
+If any prerequisite is missing the endpoint returns `503`.
+
 Behavior:
 
 * Returns `200` and the created Job name when a Kubernetes client can be initialized and the API is reachable.
@@ -242,6 +258,20 @@ Behavior:
 * Returns `500` if a creation attempt was made but failed (exception path).
 
 Disabling (default in tests): set system property `-Dk8s.disabled=true` (already applied for the Gradle `test` task in `build.gradle`).
+
+### Building the Job Image for /run-check
+
+Build the `simple-check` image so dynamically created Jobs can pull it:
+
+```bash
+docker build -t simple-check-app ./simple-check
+# For kind:
+kind load docker-image simple-check-app || true
+# For minikube:
+minikube image load simple-check-app || true
+```
+
+Ensure the image reference inside the handler (`simple-check-app`) matches what you built/pushed or modify both the code and `k8s/job.yaml` accordingly.
 
 The client is lazily initialized; failures are logged once and the endpoint remains in a disabled state until a later attempt succeeds.
 
@@ -251,9 +281,10 @@ Unit test `RunCheckEndpointTest` asserts the `503` behavior when Kubernetes inte
 To test success manually in a cluster:
 
 1. Build & load images (`practice-app:1.0.0` and `simple-check-app`).
-2. Ensure RBAC in `k8s/rbac.yaml` applied (ServiceAccount + Role + RoleBinding).
-3. Deploy the app with that ServiceAccount.
-4. Call the endpoint through port-forward or ingress:
+2. Apply RBAC (`k8s/rbac.yaml`).
+3. Deploy the app (`k8s/deployment.yaml` references the ServiceAccount).
+4. (Optional) Apply `k8s/service.yaml` & `k8s/ingress.yaml` or just port-forward.
+5. Call the endpoint through port-forward or ingress:
 
 ```bash
 curl -X POST http://localhost:<forwarded-port>/run-check
@@ -272,6 +303,8 @@ kubectl get jobs | grep simple-check-job
 | Port busy on 8080 | `lsof -nP -iTCP:8080 -sTCP:LISTEN` then `kill <pid>`; app auto-retries ephemeral port if busy |
 | Readiness false | Hit `/health/ready`; ensure server fully started |
 | YAML parser warning | Harmless; YAML module included so config loads |
+| 503 from /run-check | RBAC not applied, image missing, or `-Dk8s.disabled=true` set |
+| Job created but pods ImagePullBackOff | Image not present in cluster; load or push it |
 
 ### Port 8080 Already In Use
 
