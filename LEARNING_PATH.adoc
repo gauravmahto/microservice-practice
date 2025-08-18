@@ -1,0 +1,153 @@
+= Incremental Learning Path Guide
+:toc: macro
+:toclevels: 3
+:revdate: 2025-08-18
+
+A curated, replayable commit sequence that reconstructs the microservice from a minimal Java skeleton to a Kubernetes‑aware Helidon SE service with an optional Job trigger. Each stage isolates *one* learning focus. Walk the history in order to internalize concepts.
+
+toc::[]
+
+== Summary Table (Staged Commits)
+
+|===
+|Stage |Commit (short) |Type |Commit Message | Primary Learning Focus
+
+|1 |`d6faa21` |docs |docs(stage1): initialize minimal project (HelloWorld, Gradle, Dockerfile) with starter README | Project bootstrap, Gradle basics, Docker runnable JAR
+|2a |`3bc3ec7` |feat |feat(stage2): add Helidon SimpleWebServer with health checks, config, and basic test | Introduce Helidon SE, health endpoints, config, first test
+|2b |`e40750e` |test |test(stage2): add missing application.yaml and SimpleWebServerTest for stage 2 | Completeness: config file + unit test coverage
+|3 |`203f160` |feat |feat(stage3): replace HelloWorld with Helidon SimpleWebServer + health and config support | Replace placeholder app; shadow JAR; readiness concept
+|4 |`de99bf8` |feat |feat(stage4): add initial Kubernetes deployment/service/ingress manifests with README guidance | Core K8s objects (Deployment, Service, Ingress), probes
+|5 |`b3b580d` |feat |feat(stage5): add port fallback logic and enhanced README around probes & robustness | Operational resilience (port conflict fallback), richer docs
+|6 |`2c6f4bc` |chore |chore(stage6): add source compression script and tooling documentation | Distribution tooling, reproducible source packaging
+|7 |`a1ff3e8` |feat |feat(stage7): add /run-check endpoint, Fabric8 client, RBAC and job manifest with test | Programmatic Job creation, RBAC, feature toggle, endpoint test
+|===
+
+== Stage Narratives
+
+=== Stage 1 – Minimal Bootstrap
+A barebones Java 17 project with a `HelloWorld` class and a Dockerfile. Establishes build + containerization foundation before introducing frameworks.
+
+=== Stage 2 – First Web Server & Health
+Adds Helidon SE `SimpleWebServer`, health endpoints (`/health`, `/health/live`, `/health/ready`), externalized configuration via `application.yaml`, and a JUnit 5 test. Follow‑up commit corrects omissions – illustrating iterative refinement.
+
+=== Stage 3 – Consolidated Replacement
+Removes the placeholder `HelloWorld`, standardizes on the Helidon app, and solidifies shadow (fat) JAR packaging to simplify runtime & container usage.
+
+=== Stage 4 – Kubernetes Core Manifests
+Introduces `Deployment`, `Service`, and `Ingress` manifests. Focus on mapping application concepts (port, probes, labels) into K8s primitives. Encourages practicing `kubectl apply`, inspection, and port‑forwarding.
+
+=== Stage 5 – Robustness Enhancements
+Adds port binding fallback logic (retry with ephemeral port) and clearer configuration dump. Emphasizes operational hardening and improved observability semantics for probes.
+
+=== Stage 6 – Tooling for Distribution
+Adds a `compress-source.sh` script (and corresponding Gradle task) to produce clean source archives respecting `.gitignore` – reinforcing reproducible packaging discipline.
+
+=== Stage 7 – Kubernetes Job Orchestration
+Introduces `/run-check` endpoint that (when K8s integration enabled) programmatically creates a one‑off Job using the Fabric8 client. Adds RBAC (ServiceAccount, Role, RoleBinding) and a dedicated Job manifest. Includes a test validating disabled behavior (503) when integration is off (`-Dk8s.disabled=true`). Demonstrates feature toggling + least privilege.
+
+== Validation Snapshot
+
+All stages applied sequentially on branch `learning-path`.
+
+*Build & Tests*
+
+```
+$ gradle clean test
+BUILD SUCCESSFUL
+```
+
+Warnings present:
+- Deprecated Helidon `routing(Routing)` builder method (accepted for tutorial clarity).
+- Gradle deprecation notices (compatible with Gradle 8.x; future upgrade path documented in TODOs below).
+
+No failing tests. Key tests:
+- `SimpleWebServerTest` – root & health endpoints.
+- `RunCheckEndpointTest` – validates `/run-check` disabled contract.
+
+== How to Traverse the Learning Path
+
+Clone the repository and fetch branches:
+
+```
+git clone git@github.com:gauravmahto/microservice-practice.git
+cd microservice-practice
+git checkout learning-path
+```
+
+Inspect each stage in isolation (detached HEAD):
+
+```
+# Example: view stage 4
+git checkout de99bf8
+# Explore files, run build/tests
+gradle test
+# Return to tip of learning path
+git checkout learning-path
+```
+
+Generate a diff between stages to focus on incremental change:
+
+```
+git diff 203f160..de99bf8
+```
+
+List staged commits with one‑line summaries:
+
+```
+git log --oneline --reverse | sed -n '1,8p'
+```
+
+== Key Learning Threads
+
+[%autowidth,cols="1,1,3",options="header"]
+|===
+|Thread |Stages |Concept Progression
+|Build Tooling |1 → 6 | Gradle basics → Shadow JAR → Packaging script
+|Web Server |2 → 5 | Helidon intro → Health → Robustness (port fallback)
+|Configuration |2 → 5 | Add YAML config → Usage & dump improvements
+|Testing |2 → 7 | Basic endpoint tests → Feature toggle test
+|Kubernetes |4 → 7 | Core manifests → Probes → RBAC & Job orchestration
+|===
+
+== Suggested Exercises
+
+1. Add a metrics endpoint (Micrometer / Helidon metrics) as Stage 8.
+2. Introduce GitHub Actions CI (build + test) as Stage 9.
+3. Add structured logging (JSON) + log correlation ID middleware.
+4. Replace deprecated `routing(routing)` call with updated API once Helidon provides alternative (track Helidon release notes).
+5. Implement Job status polling endpoint (`/run-check/{jobName}`) and watch stream.
+
+== Architectural Considerations Introduced
+
+* Separation of operational concerns (probes vs functional endpoints).
+* Feature toggling for optional platform integration (K8s client).
+* Principle of least privilege via granular Role/RoleBinding.
+* Resilience techniques: ephemeral port fallback.
+* Reproducible builds & source packaging for auditing / distribution.
+
+== FAQ
+
+*Why multiple commits for Stage 2?* Demonstrates realistic iterative correction (adding missing config/test) and underscores the value of review.
+
+*Why not squash?* Pedagogical goal favors clarity of incremental learning over history brevity.
+
+*Can I fast‑forward through stages?* Yes – skim diffs (`git diff <prev>..<next>`) then checkout the later stage when comfortable.
+
+== Glossary
+
+[%autowidth,cols="1,4",options="header"]
+|===
+|Term |Definition
+|Helidon SE | A lightweight Java microservice framework providing web server, config, health, etc.
+|Readiness Probe | Indicates when a pod can serve traffic; custom flag toggled after server start.
+|Liveness Probe | Detects if the process should be restarted.
+|RBAC | Kubernetes Role Based Access Control defining resource verb permissions.
+|Shadow JAR | Fat/uber JAR bundling application + dependencies for simpler deployment.
+|Fabric8 Client | Java client for Kubernetes resources.
+|===
+
+== License / Usage
+Internal practice / educational sequence. Adapt freely within your organization.
+
+== Changelog for Learning Path File
+* 2025-08-18: Initial creation capturing stages 1–7.
