@@ -17,4 +17,4 @@ spec:
   values:
     replicaCount: 3
     image:
-      tag: "1.0.0" # When you push a commit changing this tag, Flux will auto-deploy!
+      tag: "1.0.1" # When you push a commit changing this tag, Flux will auto-deploy!
