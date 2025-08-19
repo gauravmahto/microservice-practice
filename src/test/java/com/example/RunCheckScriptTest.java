@@ -1,7 +1,6 @@
 package com.example;
 
-import io.helidon.config.Config;
-import io.helidon.webserver.WebServer;
+import io.helidon.microprofile.server.Server;
 import org.junit.jupiter.api.*;
 
 import java.io.BufferedReader;
@@ -20,17 +19,18 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class RunCheckScriptTest {
 
-  private static WebServer server;
+  private static Server server;
 
   @BeforeAll
   static void start() {
-    server = SimpleWebServer.startServer(Config.create(), 0);
+    System.setProperty("server.port", "0");
+    server = Server.builder().addApplication(ApplicationConfig.class).port(0).build().start();
   }
 
   @AfterAll
   static void stop() {
     if (server != null)
-      server.shutdown().await();
+      server.stop();
   }
 
   @Test
