@@ -15,8 +15,8 @@ import java.time.Duration;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Integration tests for {@link SimpleWebServer} verifying greeting and health
- * endpoints.
+ * Integration tests for the MicroProfile server launched via {@code ApplicationConfig},
+ * verifying the greeting and health endpoints.
  */
 public class SimpleWebServerTest {
   // WebServer instance started once for all tests
