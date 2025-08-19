@@ -128,6 +128,84 @@ kubectl port-forward svc/practice-service 8080:80
 curl -s localhost:8080/health/ready
 ```
 
+## Flux / GitOps (Flux bootstrap & deploy)
+
+This repo is set up for Flux-based GitOps. Below are the exact commands and checks used when bootstrapping Flux to this repository and deploying the `practice-chart` via a `HelmRelease` stored under `clusters/practice`.
+
+Prerequisites
+
+* `flux` CLI installed and `kubectl` pointed at the target cluster.
+* GitHub credentials via `gh auth login` or `GITHUB_TOKEN` with repo + admin:repo_hook scopes.
+
+Bootstrap Flux (example filled for this repo)
+
+```bash
+flux bootstrap github \
+  --owner=gauravmahto \
+  --repository=microservice-practice \
+  --branch=micro-profile \
+  --path=./clusters/practice \
+  --personal
+```
+
+Add a HelmRelease into the repo path Flux watches
+
+1. Place your `HelmRelease` under `clusters/practice/releases/` (example file: `clusters/practice/releases/practice-app.yaml`).
+2. Commit & push on the branch Flux is watching (in this repo we used `micro-profile`):
+
+```bash
+git add clusters/practice/releases/practice-app.yaml
+git commit -m "Add practice-app HelmRelease under clusters/practice for Flux"
+git push origin micro-profile
+```
+
+Trigger reconciliation (optional; Flux will pick up the commit automatically)
+
+```bash
+flux reconcile source git flux-system -n flux-system
+flux reconcile kustomization flux-system -n flux-system
+```
+
+Verify the deployment
+
+```bash
+flux get sources git -n flux-system
+flux get kustomizations -n flux-system
+flux get helmreleases -n flux-system
+kubectl get all -n practice
+kubectl get pods -n practice
+kubectl get helmrelease practice-app -n flux-system -o yaml
+```
+
+Quick debug & logs
+
+* If `flux get helmreleases` returns nothing: ensure the `HelmRelease` file is committed under the repo path (e.g. `clusters/practice/releases`) that Flux bootstrapped to.
+* Check the GitRepository status used by Flux:
+
+```bash
+kubectl get gitrepository flux-system -n flux-system -o yaml
+```
+
+* Tail pod logs in the `practice` namespace:
+
+```bash
+kubectl logs -n practice -l app=practice-app --follow
+```
+
+* Inspect Flux controllers and events:
+
+```bash
+kubectl get pods -n flux-system
+kubectl logs -n flux-system -l app=source-controller --tail=200
+kubectl get events -n flux-system --sort-by='.metadata.creationTimestamp'
+```
+
+Notes
+
+* In this repo we moved `releases/practice-app.yaml` -> `clusters/practice/releases/practice-app.yaml` so Flux would apply it; committing and pushing that change triggered Flux to install the HelmRelease into cluster and the HelmRelease created resources in namespace `practice`.
+* Keep your Git branch and `--path` aligned: Flux will commit and sync to the specific branch and path you specify when bootstrapping.
+
+
 ### Kubernetes health probes
 
 `k8s/deployment.yaml` uses the Helidon endpoints:
