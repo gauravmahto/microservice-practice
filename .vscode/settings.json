@@ -3,5 +3,8 @@
     "activityBar.background": "#520B53",
     "titleBar.activeBackground": "#731074",
     "titleBar.activeForeground": "#FEFBFE"
-  }
+  },
+  "cSpell.words": [
+    "Helidon"
+  ]
 }

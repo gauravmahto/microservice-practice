@@ -23,7 +23,7 @@ class MpSmokeIT {
     Response r = target.path("/openapi").request().get(); // yaml by default
     String spec = r.readEntity(String.class);
     // helpful when diagnosing:
-    System.out.println(spec);
+    // System.out.println(spec);
     assertTrue(spec.contains("/greet") || spec.contains("/api/greet"),
         "OpenAPI should list greet path; got:\n" + spec);
   }
