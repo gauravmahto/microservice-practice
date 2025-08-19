@@ -17,6 +17,9 @@ version '1.0-SNAPSHOT'
 java {
     sourceCompatibility = '17'
     targetCompatibility = '17'
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
 }
 
 // Use current Helidon 3.x version via BOM.

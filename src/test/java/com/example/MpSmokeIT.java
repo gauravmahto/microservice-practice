@@ -1,5 +1,6 @@
 package com.example;
 
+import io.helidon.microprofile.tests.junit5.AddBean;
 import io.helidon.microprofile.tests.junit5.AddConfig;
 import io.helidon.microprofile.tests.junit5.HelidonTest;
 import jakarta.inject.Inject;
@@ -10,6 +11,11 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 @HelidonTest
+@AddBean(GreetingResource.class)
+@AddBean(ConfigResource.class)
+@AddBean(RootResource.class)
+@AddBean(LivenessHealthCheck.class)
+@AddBean(ReadinessHealthCheck.class)
 @AddConfig(key = "server.port", value = "0") // let Helidon choose a free port
 @AddConfig(key = "server.host", value = "127.0.0.1")
 @AddConfig(key = "app.greeting", value = "Hello from test!")
