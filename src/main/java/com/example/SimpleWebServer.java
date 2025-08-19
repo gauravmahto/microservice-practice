@@ -90,6 +90,23 @@ public class SimpleWebServer {
     int port = config.get("server.port").asInt().orElse(8080);
     WebServer server = startServer(config, port);
     LOGGER.log(Level.INFO, "Server is up! http://localhost:{0}", server.port());
+    // Ensure Kubernetes client (if created) is closed on JVM shutdown to free
+    // resources
+    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+      KubernetesClient client = k8s;
+      if (client != null) {
+        try {
+          client.close();
+          LOGGER.log(Level.INFO, "Closed Kubernetes client");
+        } catch (Exception ex) {
+          LOGGER.log(Level.WARNING, "Failed to close Kubernetes client: " + ex.getMessage(), ex);
+        }
+      }
+      try {
+        server.shutdown().await();
+      } catch (Exception ignored) {
+      }
+    }));
   }
 
   /**
@@ -241,11 +258,13 @@ public class SimpleWebServer {
       }
       client.batch().v1().jobs().inNamespace(ns).create(job);
 
-      System.out.println("Successfully created Job: " + jobName);
+      LOGGER.log(Level.INFO, "Successfully created Job: {0} in namespace {1}", new Object[] { jobName, ns });
+      response.headers().add("Content-Type", "text/plain; charset=UTF-8");
       response.send("Successfully created Job: " + jobName + "\n");
 
     } catch (Exception e) {
-      e.printStackTrace();
+      LOGGER.log(Level.SEVERE, "Failed to create Job: " + e.getMessage(), e);
+      response.status(500).headers().add("Content-Type", "text/plain; charset=UTF-8");
       response.status(500).send("Failed to create Job: " + e.getMessage() + "\n");
     }
   }

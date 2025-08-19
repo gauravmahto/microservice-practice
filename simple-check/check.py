@@ -33,13 +33,21 @@ def build_url(args) -> str:
     env_url = os.getenv("TARGET_URL")
     if env_url:
         return env_url
-    host = os.getenv("TARGET_HOST") or "practice-service"
-    port = os.getenv("TARGET_PORT") or "80"
-    path = os.getenv("TARGET_PATH") or "/health/ready"
-    # Avoid duplicate slashes
-    if not path.startswith("/"):
-        path = "/" + path
-    return f"http://{host}:{port}{path}" if port else f"http://{host}{path}"
+    # Optional granular env vars (TARGET_HOST, TARGET_PORT, TARGET_PATH) may be used
+    # to construct the URL; otherwise fall back to DEFAULT_FALLBACK_URL.
+    host = os.getenv("TARGET_HOST")
+    port = os.getenv("TARGET_PORT")
+    path = os.getenv("TARGET_PATH")
+    if host:
+        if not path:
+            path = "/health/ready"
+        if not path.startswith("/"):
+            path = "/" + path
+        if port:
+            return f"http://{host}:{port}{path}"
+        else:
+            return f"http://{host}{path}"
+    return DEFAULT_FALLBACK_URL
 
 
 def fetch(url: str) -> tuple[int, Optional[str]]:

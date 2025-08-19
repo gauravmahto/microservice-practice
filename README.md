@@ -43,7 +43,6 @@ gradle run
 # Or run fat jar (created by shadow plugin)
 java -jar build/libs/practice-1.0-SNAPSHOT-all.jar
 ```
-
 ## Configuration
 
 Edit [`application.yaml`](src/main/resources/application.yaml):
@@ -55,6 +54,15 @@ app.greeting: "Hello from config!"
 
 ## Local Smoke Tests
 
+If you background the port-forward (with `&`) you can stop it by killing the process. Examples:
+
+```bash
+# stop all practice port-forwards (signal-safe)
+pkill -f "kubectl port-forward -n practice" || true
+
+# or find the PID and kill it manually
+ps aux | grep "kubectl port-forward" | grep practice | awk '{print $2}' | xargs -r kill
+```
 After starting (port 8080):
 
 ```bash
@@ -84,11 +92,19 @@ curl -s localhost:8080/health
 Apply manifests (adjust image tag to one you built/pushed). If you plan to use the `/run-check` endpoint or run Jobs programmatically, apply RBAC first (creates ServiceAccount referenced by the Deployment):
 
 ```bash
+If you deployed into the `practice` namespace, run the namespace-aware commands:
+
+```bash
+kubectl get jobs -n practice
+kubectl logs -n practice -l job-name=<returned-job-name>
+```
 # (Optional) load image into local cluster (example for kind)
 # kind load docker-image practice-app:1.0.0
 
 # (1) RBAC (ServiceAccount, Role, RoleBinding) – needed for /run-check feature
-kubectl apply -f k8s/rbac.yaml
+kubectl delete -f k8s/ingress.yaml -f k8s/service.yaml -f k8s/deployment.yaml 2>/dev/null || true
+# If you deployed into the 'practice' namespace, delete it to remove all created resources:
+kubectl delete namespace practice 2>/dev/null || true
 
 # (2) Core workload + networking
 kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml -f k8s/ingress.yaml
@@ -151,6 +167,19 @@ Apply changes:
 ```bash
 kubectl apply -f k8s/deployment.yaml
 ```
+
+Note: if you prefer to deploy into a named namespace (the examples below use
+`practice`), create it first and apply manifests there. Example:
+
+```bash
+kubectl create namespace practice || true
+kubectl apply -n practice -f k8s/rbac.yaml -f k8s/deployment.yaml -f k8s/service.yaml -f k8s/ingress.yaml
+```
+
+If you're using a local Kubernetes runtime like Rancher Desktop, locally-built
+images are typically available to the cluster automatically. For kind or
+minikube you may need to load images into the cluster (see End-to-End demo
+below).
 
 ## Running Tests as Smoke Check
 
