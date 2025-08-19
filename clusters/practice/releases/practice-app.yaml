@@ -5,6 +5,8 @@ metadata:
   namespace: flux-system
 spec:
   interval: "5m"
+  # Force Flux to manage the existing Helm release named 'my-app'
+  releaseName: my-app
   targetNamespace: practice
   chart:
     spec:
