@@ -1,6 +1,6 @@
-# Practice Helidon SE App
+# Practice Helidon MP App
 
-Lightweight Helidon SE microservice demonstrating:
+Lightweight Helidon MP microservice demonstrating:
 
 * Greeting endpoint `/` (config-driven message)
 * Config dump `/config` (filtered `server.*` + `app.*` keys)
@@ -14,7 +14,8 @@ Lightweight Helidon SE microservice demonstrating:
 
 ## Source Highlights
 
-* Main app: [`SimpleWebServer.java`](src/main/java/com/example/SimpleWebServer.java)
+* Main entry point: [`Main.java`](src/main/java/com/example/Main.java)
+* REST endpoints: [`GreetingResource.java`](src/main/java/com/example/GreetingResource.java)
 * Config: [`application.yaml`](src/main/resources/application.yaml)
 * Build script: [`build.gradle`](build.gradle)
 * Test: [`SimpleWebServerTest.java`](src/test/java/com/example/SimpleWebServerTest.java)

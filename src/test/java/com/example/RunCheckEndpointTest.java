@@ -1,7 +1,6 @@
 package com.example;
 
-import io.helidon.config.Config;
-import io.helidon.webserver.WebServer;
+import io.helidon.microprofile.server.Server;
 import org.junit.jupiter.api.*;
 
 import java.net.URI;
@@ -16,20 +15,21 @@ import static org.junit.jupiter.api.Assertions.*;
  * Verifies /run-check endpoint responds with 503 when k8s integration disabled.
  */
 public class RunCheckEndpointTest {
-  private static WebServer server;
+  private static Server server;
   private static HttpClient client;
 
   @BeforeAll
   static void start() {
     System.setProperty("k8s.disabled", "true");
-    server = SimpleWebServer.startServer(Config.create(), 0);
+    System.setProperty("server.port", "0");
+    server = Server.builder().addApplication(ApplicationConfig.class).port(0).build().start();
     client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
   }
 
   @AfterAll
   static void stop() {
     if (server != null)
-      server.shutdown().await();
+      server.stop();
   }
 
   @Test

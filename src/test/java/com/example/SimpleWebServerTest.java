@@ -1,7 +1,7 @@
 package com.example;
 
-import io.helidon.config.Config;
-import io.helidon.webserver.WebServer;
+import io.helidon.microprofile.server.Server;
+import com.example.ApplicationConfig;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -20,23 +20,21 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class SimpleWebServerTest {
   // WebServer instance started once for all tests
-  private static WebServer server;
+  private static Server server;
   // Shared HTTP client with short connect timeout
   private static HttpClient client;
 
   @BeforeAll
   static void start() {
-    Config config = Config.create();
-    // Use ephemeral port 0 so OS selects a free port, avoids hard-coded conflicts
-    server = SimpleWebServer.startServer(config, 0);
+    System.setProperty("server.port", "0");
+    server = Server.builder().addApplication(ApplicationConfig.class).port(0).build().start();
     client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
   }
 
   @AfterAll
   static void stop() {
     if (server != null) {
-      // Gracefully shutdown server and wait for completion
-      server.shutdown().await();
+      server.stop();
     }
   }
 
