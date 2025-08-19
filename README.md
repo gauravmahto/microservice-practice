@@ -39,10 +39,30 @@ Use the Gradle wrapper included in the repository:
 
 # Run app (Gradle)
 ./gradlew run
+# Run app (Shadow via Gradle)
+./gradlew runShadow
 
 # Or run the fat JAR created by the shadow plugin
 java -jar build/libs/practice-1.0-SNAPSHOT-all.jar
+
+# Alternative: create an installable distribution and run the generated script
+## This produces a platform-specific launch script under `build/install/<project>/bin`
+./gradlew clean installDist  
+
+./build/install/practice/bin/practice
 ```
+
+## Notes
+
+* Why avoid `./gradlew run` for CDI apps: the `run` task executes the application on Gradle's runtime classpath which can change service-loading order and classpath visibility; that can occasionally break CDI/service discovery.
+
+* Safer alternatives:
+
+  * `./gradlew runShadow` — runs the app using the shadow classpath (closer to the packaged runtime).
+
+  * `java -jar build/libs/practice-1.0-SNAPSHOT-all.jar` — run the fat JAR produced by the Shadow plugin.
+
+  * `./gradlew clean installDist` then `./build/install/practice/bin/practice` — produces a distribution with a launcher script that runs with a stable classpath.
 
 ## Configuration
 
