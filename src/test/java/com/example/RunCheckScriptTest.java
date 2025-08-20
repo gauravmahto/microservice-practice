@@ -55,16 +55,18 @@ public class RunCheckScriptTest {
   }
 
   private static Process runCheckProcess(String url, int timeoutSeconds) throws IOException {
-    // Prefer python3 if available, else fallback to python
-    List<String> cmd = List.of("bash", "-c", "command -v python3 >/dev/null 2>&1 && echo python3 || echo python");
+    // Determine which Python interpreter is available before starting the script
+    List<String> cmd = List.of("bash", "-c",
+        "command -v python3 >/dev/null 2>&1 && echo python3 || (command -v python >/dev/null 2>&1 && echo python)");
     Process which = new ProcessBuilder(cmd).start();
     try {
       which.waitFor(5, TimeUnit.SECONDS);
     } catch (InterruptedException ignored) {
     }
     String interpreter = readAll(which).trim();
-    if (interpreter.isEmpty())
-      interpreter = "python";
+    Assumptions.assumeTrue(!interpreter.isEmpty(),
+        "Skipping RunCheckScriptTest: python3 or python is required but not found");
+
     ProcessBuilder pb = new ProcessBuilder(interpreter, "simple-check/check.py", "--url", url, "--timeout",
         String.valueOf(timeoutSeconds));
     pb.environment().put("TOTAL_TIMEOUT", String.valueOf(timeoutSeconds));
