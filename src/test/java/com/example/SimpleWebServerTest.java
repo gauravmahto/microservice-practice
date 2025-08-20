@@ -1,5 +1,7 @@
 package com.example;
 
+import io.helidon.config.Config;
+import io.helidon.webserver.WebServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -13,24 +15,29 @@ import java.time.Duration;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Integration tests for {@link SimpleWebApplication} verifying greeting and health
+ * Integration tests for {@link SimpleWebServer} verifying greeting and health
  * endpoints.
  */
 public class SimpleWebServerTest {
+  // WebServer instance started once for all tests
+  private static WebServer server;
   // Shared HTTP client with short connect timeout
   private static HttpClient client;
-  private static int serverPort;
 
   @BeforeAll
   static void start() {
-    // Start MP server
-    serverPort = TestServerManager.startServer();
+    Config config = Config.create();
+    // Use ephemeral port 0 so OS selects a free port, avoids hard-coded conflicts
+    server = SimpleWebServer.startServer(config, 0);
     client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
   }
 
   @AfterAll
   static void stop() {
-    TestServerManager.stopServer();
+    if (server != null) {
+      // Gracefully shutdown server and wait for completion
+      server.shutdown().await();
+    }
   }
 
   @Test
@@ -52,7 +59,7 @@ public class SimpleWebServerTest {
   // Helper to perform a GET request and assert 200 OK, returning body
   private String get(String path) throws Exception {
     HttpRequest req = HttpRequest.newBuilder()
-        .uri(URI.create("http://localhost:" + serverPort + path))
+        .uri(URI.create("http://localhost:" + server.port() + path))
         .timeout(Duration.ofSeconds(3))
         .GET()
         .build();

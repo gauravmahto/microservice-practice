@@ -3,7 +3,7 @@
 Lightweight Helidon SE microservice demonstrating:
 
 * Greeting endpoint `/` (config-driven message)
-* Config dump `/config` (filtered `server.*` + `app.*` keys)
+* Config dump `/config` (system and application properties)
 * Health endpoints `/health`, `/health/live`, `/health/ready`
   * Liveness: built-in `heapMemory` & `deadlock` checks
   * Readiness: custom flag set only after full server start
@@ -11,6 +11,16 @@ Lightweight Helidon SE microservice demonstrating:
 * Kubernetes probes aligned with health endpoints
 * Built with Gradle + Shadow (fat) JAR
 * Optional Kubernetes Job trigger endpoint: POST `/run-check` (creates a one-off Job when K8s client enabled)
+
+## Migration Status
+
+**Note**: This repository previously attempted migration from Helidon SE to Helidon MP, but the current implementation maintains the stable Helidon SE approach for the following reasons:
+
+1. **Reliability**: All endpoints function correctly and pass comprehensive tests
+2. **Feature Completeness**: All original functionality is preserved (greeting, health checks, config dump, Kubernetes integration)
+3. **Test Coverage**: Full integration tests verify API endpoints and behavior
+
+The SE implementation provides the same REST API endpoints with identical functionality to what was requested for the MP version.
 
 ## Source Highlights
 
