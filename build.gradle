@@ -32,14 +32,8 @@ repositories {
 // Define the libraries our project depends on.
 dependencies {
     implementation platform("io.helidon:helidon-bom:${helidonVersion}")
-    implementation "io.helidon.webserver:helidon-webserver"
-    implementation "io.helidon.config:helidon-config"
-    // YAML parser so Helidon can actually parse application.yaml
-    implementation "io.helidon.config:helidon-config-yaml"
-    implementation "io.helidon.health:helidon-health"
-    implementation "io.helidon.health:helidon-health-checks"
-    // Optional: SLF4J simple for any libraries using slf4j (Helidon mainly uses JUL)
-    implementation "org.slf4j:slf4j-simple:2.0.13"
+    // Helidon MP core dependencies
+    implementation "io.helidon.microprofile.bundles:helidon-microprofile"
     // Add the Fabric8 Kubernetes Client dependency
     implementation 'io.fabric8:kubernetes-client:6.7.2'
 
@@ -49,20 +43,20 @@ dependencies {
 
 // Tell the 'application' plugin where our main class is.
 application {
-    mainClass = 'com.example.SimpleWebServer'
+    mainClass = 'io.helidon.microprofile.cdi.Main'
 }
 
 // Ensure the built JAR is executable by adding the Main-Class manifest entry.
 jar {
     manifest {
-        attributes 'Main-Class': 'com.example.SimpleWebServer'
+        attributes 'Main-Class': 'io.helidon.microprofile.cdi.Main'
     }
 }
 
 shadowJar {
     archiveClassifier.set('all')
     manifest {
-        attributes 'Main-Class': 'com.example.SimpleWebServer'
+        attributes 'Main-Class': 'io.helidon.microprofile.cdi.Main'
     }
 }
 

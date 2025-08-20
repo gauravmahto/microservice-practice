@@ -1,7 +1,5 @@
 package com.example;
 
-import io.helidon.config.Config;
-import io.helidon.webserver.WebServer;
 import org.junit.jupiter.api.*;
 
 import java.io.BufferedReader;
@@ -20,22 +18,21 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class RunCheckScriptTest {
 
-  private static WebServer server;
+  private static int serverPort;
 
   @BeforeAll
   static void start() {
-    server = SimpleWebServer.startServer(Config.create(), 0);
+    serverPort = TestServerManager.startServer();
   }
 
   @AfterAll
   static void stop() {
-    if (server != null)
-      server.shutdown().await();
+    TestServerManager.stopServer();
   }
 
   @Test
   void pythonCheckSucceedsAgainstReadyEndpoint() throws Exception {
-    String url = "http://localhost:" + server.port() + "/health/ready";
+    String url = "http://localhost:" + serverPort + "/health/ready";
     Process p = runCheckProcess(url, 10);
     int exit = waitFor(p, Duration.ofSeconds(15));
     String out = readAll(p);
