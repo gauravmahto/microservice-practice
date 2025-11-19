@@ -1,0 +1,7 @@
+{
+  "greetingMessage": "{{ lookup('env', 'APP_GREETING') | default('Hello from default config!', true) }}",
+  "featureFlags": {
+    "enableNewDashboard": {{ lookup('env', 'FEATURE_FLAG_DASHBOARD') | default(false, true) | lower }},
+    "enableApiV2": {{ lookup('env', 'FEATURE_FLAG_APIV2') | default(false, true) | lower }}
+  }
+}

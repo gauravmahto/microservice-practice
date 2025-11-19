@@ -11,6 +11,7 @@ Lightweight Helidon MicroProfile service demonstrating:
 * Kubernetes probes aligned with health endpoints
 * Built with Gradle + Shadow (fat) JAR
 * Optional Kubernetes Job trigger endpoint: POST `/run-check` (creates a one-off Job when a Kubernetes client is available)
+* **Dynamic configuration generation using Ansible init container** - generates application config from Helm values before the main container starts
 
 ## Source highlights
 
@@ -28,6 +29,17 @@ Lightweight Helidon MicroProfile service demonstrating:
 * Gradle (wrapper included)
 * Docker (for container build)
 * kubectl + a Kubernetes cluster (for `/run-check` integration)
+* Helm 3+ (for Kubernetes deployment via Helm chart)
+* Minikube or similar (for local Kubernetes testing)
+
+## Documentation
+
+* Architecture: `ARCHITECTURE.md`
+* Deployment: `DEPLOYMENT.md`
+* Configuration: `CONFIGURATION.md`
+* Operations: `OPERATIONS.md`
+* Troubleshooting: `TROUBLESHOOTING.md`
+* Decommission: `DECOMMISSION.md`
 
 ## Build & test (local)
 
@@ -80,26 +92,338 @@ app.greeting=Hello from config!
 After starting (default port 8080):
 
 ```bash
+# Root endpoint
 curl -s localhost:8080/
+
+# Greeting endpoint (configured message)
+curl -s localhost:8080/greet
+
+# Configuration dump (server.* and app.* keys)
 curl -s localhost:8080/config
+
+# Health endpoints
 curl -s localhost:8080/health
 curl -s localhost:8080/health/live
 curl -s localhost:8080/health/ready
+
+# Create Kubernetes Job (requires cluster access and RBAC)
 curl -s -X POST localhost:8080/run-check -H 'Content-Type: application/json' -d '{}'
 # The /run-check endpoint accepts a JSON body with overrides; see "RunCheck" section below
 ```
 
 ## Docker
 
-```bash
-# Build image (uses multi-stage Dockerfile)
-docker build -t practice-app:1.0.0 .
+### Building Images
 
-# Run container
+This project requires two Docker images:
+
+### Main Application Image
+
+```bash
+# Build the main application image
+docker build --load -t practice-app:1.0.0 .
+```
+
+### Ansible Configuration Runner Image (for init container)
+
+```bash
+# Build the Ansible config generator image
+cd ansible
+docker build --load -t practice-ansible-config-runner:1.0.0 .
+cd ..
+```
+
+### Running Locally with Docker
+
+```bash
+# Run main application container
 docker run --rm -p 8080:8080 --name practice practice-app:1.0.0
 
 # Smoke test
 curl -s localhost:8080/health
+```
+
+## Helm Chart Deployment
+
+The project includes a Helm chart (`practice-chart/`) that deploys the application with an init container for dynamic configuration generation.
+
+### Architecture Overview
+
+The deployment uses an **init container pattern**:
+
+1. **Init Container** (`ansible-config-generator`):
+   * Runs Ansible playbook to generate application configuration
+   * Writes `config.json` to a shared volume (`config-volume`)
+   * Uses values from `values.yaml` as environment variables
+
+2. **Main Container** (`practice-app`):
+   * Starts after init container completes successfully
+   * Mounts the shared volume at `/app/config` (read-only)
+   * Reads the generated configuration file
+
+3. **Shared Volume** (`config-volume`):
+   * EmptyDir volume shared between init and main containers
+   * Persists only for the pod lifetime
+
+### Helm Chart Configuration
+
+Key configuration in `practice-chart/values.yaml`:
+
+```yaml
+# Main application image
+image:
+  repository: localhost/practice-app  # Use localhost/ prefix for Minikube
+  tag: "1.0.0"
+  pullPolicy: Never  # For local images in Minikube
+
+# Ansible config generator for init container
+configGenerator:
+  image:
+    repository: localhost/practice-ansible-config-runner
+    tag: "1.0.0"
+
+# Application configuration passed to init container
+applicationConfig:
+  greeting: "Hello from Helm!"
+  features:
+    dashboard: true
+    apiV2: false
+```
+
+### Complete Deployment from Scratch
+
+#### Step 1: Start Minikube
+
+```bash
+# Start Minikube with the driver it was created with
+minikube start
+
+# Verify cluster is running
+kubectl cluster-info
+kubectl get nodes
+```
+
+#### Step 2: Build the Application
+
+```bash
+# Build Java application
+./gradlew clean build -x test
+```
+
+#### Step 3: Build Docker Images
+
+```bash
+# Build main application image
+docker build --load -t practice-app:1.0.0 .
+
+# Build Ansible config runner image
+cd ansible
+docker build --load -t practice-ansible-config-runner:1.0.0 .
+cd ..
+
+# Verify images are built
+docker images | grep practice
+```
+
+#### Step 4: Load Images into Minikube
+
+```bash
+# Load both images into Minikube
+minikube image load practice-app:1.0.0
+minikube image load practice-ansible-config-runner:1.0.0
+
+# Verify images in Minikube
+minikube ssh "sudo crictl images | grep practice"
+```
+
+**Note**: Minikube stores images with the `localhost/` prefix internally. The Helm values.yaml uses `localhost/practice-app` and `localhost/practice-ansible-config-runner` to match this.
+
+#### Step 5: Deploy with Helm
+
+```bash
+# Install the Helm chart
+helm install practice-release ./practice-chart
+
+# Or upgrade if already installed
+helm upgrade practice-release ./practice-chart
+
+# Watch pods starting up
+kubectl get pods -l app.kubernetes.io/name=practice-chart -w
+```
+
+#### Step 6: Verify Deployment
+
+```bash
+# Check pod status (should show Running after init container completes)
+kubectl get pods -l app.kubernetes.io/name=practice-chart
+
+# View init container logs (Ansible playbook execution)
+kubectl logs <pod-name> -c ansible-config-generator
+
+# Verify generated configuration file
+kubectl exec <pod-name> -- cat /app/config/config.json
+
+# Check main application logs
+kubectl logs <pod-name> -c practice-chart
+```
+
+Expected output from config file:
+
+```json
+{
+  "greetingMessage": "Hello from Helm!",
+  "featureFlags": {
+    "enableNewDashboard": true,
+    "enableApiV2": false
+  }
+}
+```
+
+#### Step 7: Test the Application
+
+```bash
+# Port-forward to access the application
+kubectl port-forward svc/practice-release-practice-chart 8080:8080
+
+# In another terminal, test the available endpoints
+curl http://localhost:8080                    # Root endpoint - returns "OK"
+curl http://localhost:8080/greet             # Greeting from config
+curl http://localhost:8080/config            # Application configuration
+curl http://localhost:8080/health            # Health check
+curl http://localhost:8080/health/live       # Liveness probe
+curl http://localhost:8080/health/ready      # Readiness probe
+```
+
+**Expected responses:**
+
+* `/` - Returns `OK`
+* `/greet` - Returns the greeting message from config (e.g., "Hello from Helm!")
+* `/config` - Returns JSON with `app.*` and `server.*` configuration
+* `/health` - Returns overall health status
+* `/health/live` - Returns liveness status
+* `/health/ready` - Returns readiness status
+
+### Helm Commands Reference
+
+```bash
+# Validate chart syntax
+helm lint ./practice-chart
+
+# Render templates without installing (dry-run)
+helm template test-release ./practice-chart
+
+# Render and view specific sections
+helm template test-release ./practice-chart | grep -A 20 "initContainers:"
+helm template test-release ./practice-chart | grep -A 10 "volumes:"
+
+# Install/upgrade with custom values
+helm upgrade --install practice-release ./practice-chart \
+  --set applicationConfig.greeting="Custom greeting" \
+  --set applicationConfig.features.dashboard=false
+
+# View deployed release
+helm list
+helm get values practice-release
+helm get manifest practice-release
+
+# Uninstall
+helm uninstall practice-release
+```
+
+### Troubleshooting Helm Deployment
+
+#### Init Container Issues
+
+**Problem**: Init container in `CrashLoopBackOff` or `Error` state
+
+```bash
+# Check init container logs
+kubectl logs <pod-name> -c ansible-config-generator
+
+# Common issues:
+# 1. Template file not found - ensure ansible/templates/config.json.j2 exists
+# 2. Playbook errors - check Ansible syntax in ansible/playbooks/generate_config.yml
+```
+
+**Problem**: Init container in `ImageInspectError` or `ImagePullBackOff`
+
+```bash
+# Verify images are loaded in Minikube
+minikube ssh "sudo crictl images | grep practice"
+
+# If missing, reload images
+minikube image load practice-app:1.0.0
+minikube image load practice-ansible-config-runner:1.0.0
+
+# Delete pods to force recreation
+kubectl delete pods -l app.kubernetes.io/name=practice-chart
+```
+
+**Problem**: Image names not matching
+
+* Minikube stores local images with `localhost/` prefix
+* Ensure `values.yaml` uses:
+  * `image.repository: localhost/practice-app`
+  * `configGenerator.image.repository: localhost/practice-ansible-config-runner`
+  * `image.pullPolicy: Never`
+
+#### Main Container Issues
+
+**Problem**: Main container not starting after init container completes
+
+```bash
+# Check pod events
+kubectl describe pod <pod-name>
+
+# Check if volume mount is correct
+kubectl exec <pod-name> -- ls -la /app/config/
+
+# Verify config file exists
+kubectl exec <pod-name> -- cat /app/config/config.json
+```
+
+#### Helm Release Issues
+
+**Problem**: Release fails to upgrade
+
+```bash
+# Check Helm release status
+helm status practice-release
+
+# View release history
+helm history practice-release
+
+# Rollback to previous version if needed
+helm rollback practice-release <revision>
+
+# Force reinstall
+helm uninstall practice-release
+helm install practice-release ./practice-chart
+```
+
+### Debugging Commands
+
+```bash
+# Get detailed pod information
+kubectl describe pod <pod-name>
+
+# View all container logs in a pod
+kubectl logs <pod-name> --all-containers=true
+
+# Execute commands inside running container
+kubectl exec -it <pod-name> -- /bin/sh
+
+# View pod resource usage
+kubectl top pod <pod-name>
+
+# Check events in namespace
+kubectl get events --sort-by='.lastTimestamp'
+
+# Inspect deployment
+kubectl describe deployment practice-release-practice-chart
+
+# View generated deployment YAML
+kubectl get deployment practice-release-practice-chart -o yaml
 ```
 
 ## Kubernetes

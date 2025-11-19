@@ -6,5 +6,6 @@
   },
   "cSpell.words": [
     "Helidon"
-  ]
+  ],
+  "ansible.python.interpreterPath": "/Users/gaurav/.pyenv/versions/3.13.2/bin/python"
 }

@@ -1,4 +1,17 @@
+# Compiled source
 build/
+
+# Gradle files
 .gradle/
+
+# macOS files
 .DS_Store
+
+# Compiled source
 bin
+
+# gemini-cli settings
+.gemini/
+
+# GitHub App credentials
+gha-creds-*.json
