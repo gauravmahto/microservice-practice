@@ -12,6 +12,7 @@ Lightweight Helidon MicroProfile service demonstrating:
 * Built with Gradle + Shadow (fat) JAR
 * Optional Kubernetes Job trigger endpoint: POST `/run-check` (creates a one-off Job when a Kubernetes client is available)
 * **Dynamic configuration generation using Ansible init container** - generates application config from Helm values before the main container starts
+* **Local Observability Stack** - Ansible playbook to spin up Prometheus and Grafana locally for monitoring
 
 ## Source highlights
 
@@ -141,6 +142,49 @@ docker run --rm -p 8080:8080 --name practice practice-app:1.0.0
 
 # Smoke test
 curl -s localhost:8080/health
+```
+
+## Local Observability Stack
+
+This project includes an Ansible playbook to provision a local observability stack using **Prometheus** and **Grafana** running in **Podman** containers. This allows you to monitor the application metrics locally.
+
+### Prerequisites
+
+* **Podman**: Must be installed and running.
+* **Ansible**: Must be installed with the `containers.podman` collection.
+
+  ```bash
+  ansible-galaxy collection install containers.podman
+  ```
+
+### Setup
+
+To provision the stack (Prometheus + Grafana) and create the necessary configurations:
+
+```bash
+ansible-playbook ansible/playbooks/observability.yml
+```
+
+This will:
+
+1. Generate Prometheus and Grafana configurations in `ansible/generated_config/`.
+2. Create a Podman network named `monitoring`.
+3. Start a **Prometheus** container (scraping `host.docker.internal:8080`).
+4. Start a **Grafana** container with a pre-configured dashboard.
+
+### Access
+
+* **Prometheus**: [http://localhost:9090](http://localhost:9090)
+* **Grafana**: [http://localhost:3000](http://localhost:3000)
+  * **User**: `admin`
+  * **Password**: `admin`
+
+### Teardown
+
+To stop and remove the containers and network:
+
+```bash
+ansible-playbook ansible/playbooks/teardown.yml
 ```
 
 ## Helm Chart Deployment

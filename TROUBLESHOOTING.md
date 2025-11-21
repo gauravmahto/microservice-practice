@@ -98,6 +98,10 @@ kubectl get events --sort-by='.lastTimestamp' | tail -n 50
 # Inspect generated config in the container
 kubectl exec "$POD" -- cat /app/config/config.json | jq .
 
+## Local Monitoring
+
+If you are running the Local Observability Stack (Prometheus + Grafana), you can check the dashboard at [http://localhost:3000](http://localhost:3000) to visualize metrics like Request Rate and JVM Threads. This can help diagnose performance issues or verify that the application is handling traffic.
+
 # Render Helm templates and lint
 helm lint ./practice-chart
 helm template test-release ./practice-chart | sed -n '1,200p'

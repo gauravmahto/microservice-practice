@@ -49,6 +49,39 @@ Notes:
 - Config is rendered only at pod start. Changing values triggers a rolling restart (via Helm upgrade) to regenerate.
 - The shared `emptyDir` volume lives for the pod lifetime only.
 
+## Local Observability Stack
+
+You can spin up a local Prometheus and Grafana stack using Ansible and Podman to monitor the application (or learn by example).
+
+### Prerequisites
+
+- Ansible
+- Podman (and `containers.podman` collection)
+
+### Start the Stack
+
+```bash
+ansible-playbook ansible/playbooks/observability.yml
+```
+
+### Access Dashboards
+
+- **Prometheus**: [http://localhost:9090](http://localhost:9090)
+- **Grafana**: [http://localhost:3000](http://localhost:3000)
+  - **User**: `admin`
+  - **Password**: `admin`
+
+### Configuration
+
+- Config files are generated in `ansible/generated_config/`.
+- Prometheus scrapes `host.docker.internal:8080` by default. Ensure your app is running locally on port 8080.
+
+### Stop/Cleanup
+
+```bash
+ansible-playbook ansible/playbooks/teardown.yml
+```
+
 ## Scaling & Rollouts
 
 ```bash

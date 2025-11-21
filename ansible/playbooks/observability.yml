@@ -1,0 +1,99 @@
+---
+- name: Setup Observability Stack (Prometheus + Grafana)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    prometheus_version: 'v2.45.0'
+    grafana_version: '10.0.3'
+    # Hostname to access the app running on your machine from inside Docker
+    # On Mac/Windows, host.docker.internal resolves to the host machine
+    app_host: 'host.docker.internal'
+    app_port: 8080
+    config_base_dir: '{{ playbook_dir | dirname }}/generated_config'
+
+  tasks:
+    - name: Ensure configuration directories exist
+      ansible.builtin.file:
+        path: '{{ item }}'
+        state: directory
+        mode: '0755'
+      loop:
+        - '{{ config_base_dir }}/prometheus'
+        - '{{ config_base_dir }}/grafana/provisioning/datasources'
+        - '{{ config_base_dir }}/grafana/provisioning/dashboards'
+
+    - name: Generate Prometheus configuration
+      ansible.builtin.template:
+        src: '../templates/prometheus.yml.j2'
+        dest: '{{ config_base_dir }}/prometheus/prometheus.yml'
+
+    - name: Generate Grafana Datasource configuration
+      ansible.builtin.template:
+        src: '../templates/grafana-datasources.yml.j2'
+        dest: '{{ config_base_dir }}/grafana/provisioning/datasources/datasources.yml'
+
+    - name: Generate Grafana Dashboard Provider configuration
+      ansible.builtin.template:
+        src: '../templates/grafana-dashboards.yml.j2'
+        dest: '{{ config_base_dir }}/grafana/provisioning/dashboards/provider.yml'
+
+    - name: Generate Grafana Dashboard JSON
+      ansible.builtin.template:
+        src: '../templates/grafana-dashboard.json.j2'
+        dest: '{{ config_base_dir }}/grafana/provisioning/dashboards/practice-dashboard.json'
+
+    - name: Create Podman Network for Observability
+      containers.podman.podman_network:
+        name: monitoring
+        state: present
+
+    - name: Start Prometheus Container
+      containers.podman.podman_container:
+        name: prometheus
+        image: 'prom/prometheus:{{ prometheus_version }}'
+        state: started
+        restart_policy: always
+        ports:
+          - '9090:9090'
+        volumes:
+          - '{{ config_base_dir }}/prometheus:/etc/prometheus:Z,ro'
+        network:
+          - monitoring
+        command: >-
+          --config.file=/etc/prometheus/prometheus.yml
+          --storage.tsdb.path=/prometheus
+          --web.console.libraries=/usr/share/prometheus/console_libraries
+          --web.console.templates=/usr/share/prometheus/consoles
+
+    - name: Start Grafana Container
+      containers.podman.podman_container:
+        name: grafana
+        image: 'grafana/grafana:{{ grafana_version }}'
+        state: started
+        restart_policy: always
+        ports:
+          - '3000:3000'
+        volumes:
+          - '{{ config_base_dir }}/grafana/provisioning:/etc/grafana/provisioning:Z'
+        network:
+          - monitoring
+        env:
+          GF_SECURITY_ADMIN_PASSWORD: 'admin'
+
+    - name: Wait for services to be ready
+      ansible.builtin.wait_for:
+        port: '{{ item }}'
+        delay: 2
+      loop:
+        - 9090
+        - 3000
+
+    - name: Display Access Info
+      ansible.builtin.debug:
+        msg:
+          - '--------------------------------------------------'
+          - 'Observability Stack is Running!'
+          - 'Prometheus: http://localhost:9090'
+          - 'Grafana:    http://localhost:3000 (User: admin, Pass: admin)'
+          - '--------------------------------------------------'

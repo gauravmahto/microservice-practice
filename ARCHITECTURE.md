@@ -13,6 +13,7 @@ This project is a Helidon MicroProfile Java microservice packaged via Gradle and
 - **Shared Volume**: `emptyDir` volume (`config-volume`) mounted at `/app/config` in both init and main containers.
 - **Helm Chart**: Located in `practice-chart/`. Template `deployment.yaml` defines initContainer, volume, env vars, and merges user volume mounts.
 - **Kubernetes Objects**: Deployment (replicas configurable), Service (ClusterIP), optional Ingress & HPA (templates present), ServiceAccount.
+- **Local Observability Stack**: Ansible playbook (`observability.yml`) that provisions Prometheus and Grafana containers locally for monitoring the application during development.
 
 ## 3. Build & Images
 

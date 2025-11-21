@@ -1,0 +1,20 @@
+---
+- name: Teardown Observability Stack
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Stop and remove Grafana container
+      containers.podman.podman_container:
+        name: grafana
+        state: absent
+
+    - name: Stop and remove Prometheus container
+      containers.podman.podman_container:
+        name: prometheus
+        state: absent
+
+    - name: Remove Podman Network
+      containers.podman.podman_network:
+        name: monitoring
+        state: absent
